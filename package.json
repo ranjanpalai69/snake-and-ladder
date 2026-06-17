@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx --tsconfig tsconfig.server.json --require ./server-setup.cjs server.ts",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "NODE_ENV=production tsx --tsconfig tsconfig.server.json --require ./server-setup.cjs server.ts",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
