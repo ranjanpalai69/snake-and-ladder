@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: snake-and-ladder
+    runtime: node
+    plan: free           # upgrade to "starter" for always-on
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # ── Supabase (set values in Render dashboard → Environment) ──────────────
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false       # fill in Render dashboard
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # ── App URL — set AFTER first deploy once you know the Render URL ────────
+      # Example: https://snake-and-ladder.onrender.com
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      # Socket connects to same origin in production (leave empty or same as APP_URL)
+      - key: NEXT_PUBLIC_SOCKET_URL
+        value: ""
+      - key: PORT
+        value: "10000"   # Render's default port

@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 263 70% 50%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --ring: 263 70% 50%;
+  --radius: 0.75rem;
+  --font-inter: "Inter", sans-serif;
+  --font-orbitron: "Orbitron", sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow-x: hidden;
+  background: #030305;
+}
+
+body {
+  font-family: var(--font-inter);
+  color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.5); }
+
+/* Background grid pattern */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Glassmorphism card */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Animated gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8, #a78bfa, #c084fc, #e879f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Three.js canvas */
+canvas { display: block; }
+
+/* Disable default focus outline, use custom */
+:focus-visible { outline: 2px solid rgba(99, 102, 241, 0.6); outline-offset: 2px; border-radius: 6px; }
+
+.font-display { font-family: var(--font-orbitron); }
+.font-mono { font-family: var(--font-jetbrains-mono); }

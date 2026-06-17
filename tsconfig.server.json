@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": false,
+    "esModuleInterop": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "outDir": ".server-build",
+    "target": "ES2017",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["server.ts", "src/server/**/*.ts", "src/types/**/*.ts", "src/lib/game/**/*.ts"],
+  "exclude": ["node_modules"]
+}
