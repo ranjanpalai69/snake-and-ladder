@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Copy, ArrowLeft, Loader2, Bell, Dices, Users, MessageSquare, UserMinus, Send } from "lucide-react";
+import { Check, Copy, ArrowLeft, Loader2, Bell, Dices, Users, MessageSquare, UserMinus, Send, LogOut, AlertTriangle } from "lucide-react";
 import { PLAYER_COLORS, type PlayerColor, type GamePlayer } from "@/types/game";
 import { DynamicGameScene } from "@/components/3d/DynamicScene";
 import { PlayerPanel } from "@/components/game/PlayerPanel";
@@ -42,6 +42,63 @@ function DiceRevealOverlay({ value }: { value: number }) {
         </div>
       </motion.div>
     </AnimatePresence>
+  );
+}
+
+// ── Leave match warning modal ─────────────────────────────────────────────────
+function LeaveWarningModal({
+  onStay,
+  onLeave,
+}: {
+  onStay: () => void;
+  onLeave: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 26 }}
+        className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-black rounded-2xl border border-amber-500/30 overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
+        <div className="p-6 flex flex-col items-center text-center gap-4">
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(245,158,11,0.15)", border: "2px solid rgba(245,158,11,0.4)" }}
+          >
+            <AlertTriangle className="w-7 h-7 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-bold text-white mb-1">Leave the match?</h3>
+            <p className="text-slate-400 text-sm">
+              The game is still in progress. Leaving now will remove you from the match.
+            </p>
+          </div>
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={onStay}
+              className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white transition-all"
+              style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+            >
+              Stay
+            </button>
+            <button
+              onClick={onLeave}
+              className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-all"
+            >
+              Leave anyway
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -105,6 +162,26 @@ function DisconnectedPlayerActions({
         );
       })}
     </div>
+  );
+}
+
+// ── Last-player quit banner ───────────────────────────────────────────────────
+function LastPlayerBanner({ onQuit }: { onQuit: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-red-500/30 bg-red-950/30 p-3 flex items-center gap-3"
+    >
+      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+      <p className="text-xs text-red-300 flex-1">Everyone else left. You're the last player.</p>
+      <button
+        onClick={onQuit}
+        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors shrink-0"
+      >
+        Quit match
+      </button>
+    </motion.div>
   );
 }
 
@@ -410,11 +487,15 @@ function MobileGamePanel({
   currentPlayerUserId,
   myUserId,
   hostId,
+  isLastPlayer,
+  onQuit,
 }: {
   players: GamePlayer[];
   currentPlayerUserId: string | undefined;
   myUserId: string | undefined;
   hostId: string | undefined;
+  isLastPlayer: boolean;
+  onQuit: () => void;
 }) {
   const [tab, setTab] = useState<"controls" | "players" | "chat">("controls");
   const { unreadChatCount, clearUnread } = useGameStore();
@@ -455,7 +536,12 @@ function MobileGamePanel({
 
       {/* Tab content */}
       <div className="overflow-y-auto flex-1 p-3 space-y-2">
-        {tab === "controls" && <GameControls />}
+        {tab === "controls" && (
+          <>
+            {isLastPlayer && <LastPlayerBanner onQuit={onQuit} />}
+            <GameControls />
+          </>
+        )}
         {tab === "players" && (
           <>
             <DisconnectedPlayerActions players={players} myUserId={myUserId} hostId={hostId} />
@@ -482,6 +568,8 @@ function GamePageInner() {
   const router = useRouter();
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const leaveTargetRef = useRef<string | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -493,15 +581,33 @@ function GamePageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.roomId]);
 
+  const isActive =
+    gameState?.status === "playing" && gameState?.roomId === params.roomId;
+
   // Warn before browser refresh when game is active in THIS room
   useEffect(() => {
-    const isActive =
-      gameState?.status === "playing" && gameState?.roomId === params.roomId;
     if (!isActive) return;
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [gameState?.status, gameState?.roomId, params.roomId]);
+  }, [isActive]);
+
+  // Intercept browser back button during active game
+  useEffect(() => {
+    if (!isActive) return;
+    // Push a state entry so we can intercept the first back press
+    history.pushState({ gameActive: true }, "");
+
+    const onPopState = () => {
+      // Re-push so another back press is also intercepted
+      history.pushState({ gameActive: true }, "");
+      setShowLeaveWarning(true);
+      leaveTargetRef.current = "/lobby";
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [isActive]);
 
   // Redirect to lobby if no context for this room after grace period
   useEffect(() => {
@@ -528,6 +634,26 @@ function GamePageInner() {
   const isPlaying =
     (gameState?.status === "playing" || gameState?.status === "finished") &&
     gameState?.roomId === params.roomId;
+
+  // Determine if the current user is the only player left (everyone else left/disconnected)
+  const connectedPlayers = gameState?.players.filter((p) => p.isConnected) ?? [];
+  const isLastPlayer =
+    isActive &&
+    connectedPlayers.length === 1 &&
+    connectedPlayers[0]?.userId === user?.id;
+
+  const handleLeaveConfirmed = useCallback(() => {
+    setShowLeaveWarning(false);
+    try { leaveRoom(); } catch {}
+    useGameStore.getState().reset();
+    router.push(leaveTargetRef.current ?? "/lobby");
+  }, [leaveRoom, router]);
+
+  const handleQuitMatch = useCallback(() => {
+    try { leaveRoom(); } catch {}
+    useGameStore.getState().reset();
+    router.push("/lobby");
+  }, [leaveRoom, router]);
 
   if (!mounted) {
     return (
@@ -571,6 +697,16 @@ function GamePageInner() {
     <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Navbar />
 
+      {/* Leave match warning modal */}
+      <AnimatePresence>
+        {showLeaveWarning && (
+          <LeaveWarningModal
+            onStay={() => setShowLeaveWarning(false)}
+            onLeave={handleLeaveConfirmed}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Game area — stacks vertically on mobile, side-by-side on desktop */}
       <div className="flex flex-1 overflow-hidden pt-16 flex-col lg:flex-row">
 
@@ -588,6 +724,7 @@ function GamePageInner() {
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
           className="hidden lg:flex w-80 flex-col gap-3 p-4 bg-black/40 border-l border-white/8 overflow-y-auto"
         >
+          {isLastPlayer && <LastPlayerBanner onQuit={handleQuitMatch} />}
           <DisconnectedPlayerActions
             players={gameState.players}
             myUserId={user?.id}
@@ -599,6 +736,17 @@ function GamePageInner() {
             myUserId={user?.id}
           />
           <GameControls />
+          {/* Leave match button */}
+          <button
+            onClick={() => {
+              leaveTargetRef.current = "/lobby";
+              setShowLeaveWarning(true);
+            }}
+            className="flex items-center justify-center gap-2 py-2 rounded-xl text-sm text-slate-500 border border-white/8 hover:text-red-400 hover:border-red-500/30 transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Leave match
+          </button>
           <div className="flex-1 min-h-0">
             <ChatPanel onActive={() => useGameStore.getState().clearUnread()} />
           </div>
@@ -610,6 +758,8 @@ function GamePageInner() {
           currentPlayerUserId={currentPlayerUserId}
           myUserId={user?.id}
           hostId={currentRoom?.hostId}
+          isLastPlayer={isLastPlayer}
+          onQuit={handleQuitMatch}
         />
       </div>
 

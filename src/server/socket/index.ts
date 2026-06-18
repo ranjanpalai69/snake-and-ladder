@@ -3,10 +3,11 @@ import type { Server as HttpServer } from "http";
 import { createClient } from "@supabase/supabase-js";
 import type { ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData } from "@/types/socket";
 import { registerRoomHandlers, rooms } from "./handlers/room";
-import { registerGameHandlers, persistMatchResult } from "./handlers/game";
+import { registerGameHandlers } from "./handlers/game";
 import { registerChatHandlers } from "./handlers/chat";
 import { getCachedProfile, setCachedProfile, refreshProfileTTL } from "@/server/cache/profileCache";
 import { pendingRejoinInvites } from "@/server/socket/rejoinStore";
+import { persistMatchResult } from "./handlers/persist";
 
 // userId → socketId index for O(1) duplicate-connection eviction
 const userSocketIndex = new Map<string, string>();
@@ -137,19 +138,6 @@ export function createSocketServer(httpServer: HttpServer) {
     registerGameHandlers(io, socket);
     registerChatHandlers(io, socket);
 
-    // ── Deliver pending rejoin invite on connect ───────────────────────────
-    const pendingInvite = pendingRejoinInvites.get(userId);
-    if (pendingInvite && pendingInvite.expiresAt > Date.now()) {
-      const { roomId: invRoomId, roomName, invitedBy } = pendingInvite;
-      // Only deliver if game room still exists and is still playing
-      const invRoom = rooms.get(invRoomId);
-      if (invRoom && invRoom.gameState?.status === "playing") {
-        socket.emit("game:rejoin_invite", { roomId: invRoomId, roomName, invitedBy });
-      } else {
-        pendingRejoinInvites.delete(userId);
-      }
-    }
-
     // ── Reconnect handler ─────────────────────────────────────────────────
     socket.on("room:reconnect", ({ roomId }, cb) => {
       const gameRoom = rooms.get(roomId);
@@ -228,6 +216,9 @@ export function createSocketServer(httpServer: HttpServer) {
           const p = room.room.players.find((pl) => pl.userId === userId);
           if (!p || p.isConnected) return; // reconnected — do nothing
 
+          // Capture username before removal
+          const leftUsername = p.username;
+
           // Clear pending invite — they didn't come back
           pendingRejoinInvites.delete(userId);
 
@@ -237,8 +228,14 @@ export function createSocketServer(httpServer: HttpServer) {
           const gs = room.gameState;
           if (!gs) return;
 
-          const remaining = gs.players.filter((pl) => pl.userId !== userId);
-          if (remaining.length === 0 || !room.room.players.some((pl) => pl.isConnected)) {
+          // Tell remaining players who left and how many remain
+          io.to(roomId).emit("game:player_left", {
+            userId,
+            username: leftUsername,
+            remainingCount: gs.players.length,
+          });
+
+          if (!room.room.players.some((pl) => pl.isConnected) || gs.players.length === 0) {
             // All players gone — abandon and persist
             gs.status = "finished";
             io.to(roomId).emit("game:finished", gs);
@@ -246,24 +243,15 @@ export function createSocketServer(httpServer: HttpServer) {
               console.error("[socket:disconnect] persist abandoned failed:", e)
             );
             rooms.delete(roomId);
-          } else if (gs.players.length < 2) {
+          } else if (gs.status === "finished") {
             // Only one player left in state — game over
-            gs.status = "finished";
             io.to(roomId).emit("game:finished", gs);
             persistMatchResult(gs).catch((e) =>
               console.error("[socket:disconnect] persist failed:", e)
             );
           } else {
-            // Advance turn index if it pointed at the removed slot
-            if (gs.currentPlayerIndex >= gs.players.length) {
-              gs.currentPlayerIndex = 0;
-            }
+            // 2+ players remain — game continues; turn index already fixed in removePlayer
             io.to(roomId).emit("game:state", gs);
-            io.to(roomId).emit("system:notification", {
-              type: "warning",
-              message: `${p.username} left the game.`,
-              timestamp: Date.now(),
-            });
           }
         }, 90_000);
       }

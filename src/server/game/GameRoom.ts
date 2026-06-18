@@ -69,6 +69,9 @@ export class GameRoom {
   }
 
   removePlayer(userId: string): void {
+    // Capture game-state index of the removed player BEFORE mutating arrays
+    const removedGameIdx = this.gameState?.players.findIndex((p) => p.userId === userId) ?? -1;
+
     this.room.players = this.room.players.filter((p) => p.userId !== userId);
 
     if (this.room.players.length === 0) return;
@@ -80,8 +83,18 @@ export class GameRoom {
 
     if (this.gameState) {
       this.gameState.players = this.gameState.players.filter((p) => p.userId !== userId);
+
       if (this.gameState.players.length < 2 && this.gameState.status === "playing") {
         this.gameState.status = "finished";
+      } else if (this.gameState.status === "playing" && removedGameIdx !== -1) {
+        // Shift currentPlayerIndex so the turn pointer stays on the correct player
+        if (removedGameIdx < this.gameState.currentPlayerIndex) {
+          this.gameState.currentPlayerIndex--;
+        }
+        // Clamp to valid range after removal
+        if (this.gameState.currentPlayerIndex >= this.gameState.players.length) {
+          this.gameState.currentPlayerIndex = 0;
+        }
       }
     }
   }

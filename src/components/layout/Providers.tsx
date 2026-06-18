@@ -34,6 +34,7 @@ function SocketInitializer() {
   const {
     setGameState,
     addChatMessage,
+    clearChatForRoom,
     setShowWinModal,
     setRolling,
     setReconnecting,
@@ -140,9 +141,15 @@ function SocketInitializer() {
       });
     });
 
-    socket.on("room:player:left", () => {
-      // room:updated fires alongside this, so store stays in sync automatically
-      toast("A player left the room.", {
+    socket.on("room:player:left", (playerId) => {
+      // Look up the player's name from the current room BEFORE room:updated removes them
+      const { currentRoom } = useRoomStore.getState();
+      const { gameState } = useGameStore.getState();
+      // Only show this toast for lobby (not active game — game:player_left handles that)
+      if (gameState?.status === "playing") return;
+      const player = currentRoom?.players.find((p) => p.userId === playerId);
+      const name = player?.username ?? "A player";
+      toast(`${name} left the room.`, {
         icon: "🚪",
         duration: 3000,
         style: {
@@ -157,6 +164,8 @@ function SocketInitializer() {
     socket.on("game:started", (state) => {
       setCountdown(null);
       setGameState(state);
+      // Clear chat so each game starts with a fresh, room-specific history
+      clearChatForRoom(state.roomId);
       toast.success("Game started! Good luck!", { duration: 3000 });
     });
 
@@ -186,7 +195,48 @@ function SocketInitializer() {
     // game:turn is informational — currentPlayerIndex is already in game:move payload
     socket.on("game:turn", () => {});
 
-    // ── Rejoin invite ─────────────────────────────────────────────────────
+    // ── Player left during active game ────────────────────────────────────
+    socket.on("game:player_left", ({ username, remainingCount }) => {
+      const message =
+        remainingCount >= 2
+          ? `${username} left the game. Match continues!`
+          : `${username} left. You are the last player.`;
+
+      toast(
+        (t) => (
+          <span style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 13 }}>🚪 {message}</span>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              style={{
+                background: "transparent",
+                color: "#94a3b8",
+                border: "1px solid rgba(148,163,184,0.25)",
+                borderRadius: 8,
+                padding: "3px 10px",
+                cursor: "pointer",
+                fontSize: 11,
+                alignSelf: "flex-start",
+              }}
+            >
+              Dismiss
+            </button>
+          </span>
+        ),
+        {
+          duration: 8000,
+          style: {
+            background: "#1e1b4b",
+            border: "1px solid rgba(239,68,68,0.3)",
+            color: "#e2e8f0",
+            borderRadius: 12,
+            maxWidth: 320,
+          },
+        }
+      );
+    });
+
+    // ── Rejoin invite — only delivered when host explicitly sends one ──────
     socket.on("game:rejoin_invite", ({ roomId, roomName, invitedBy }) => {
       toast(
         (t) => (
@@ -243,8 +293,9 @@ function SocketInitializer() {
 
     // ── Chat ───────────────────────────────────────────────────────────────
     socket.on("chat:message", (msg) => {
-      addChatMessage(msg);
-      // Increment unread if the chat panel is not currently visible
+      const { gameState } = useGameStore.getState();
+      const roomId = gameState?.roomId ?? "";
+      addChatMessage(msg, roomId);
       incrementUnread();
     });
 
@@ -292,6 +343,7 @@ function SocketInitializer() {
       socket.off("game:move");
       socket.off("game:finished");
       socket.off("game:turn");
+      socket.off("game:player_left");
       socket.off("game:rejoin_invite");
       socket.off("chat:message");
       socket.off("chat:typing");

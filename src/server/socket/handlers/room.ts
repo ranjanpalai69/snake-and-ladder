@@ -4,6 +4,7 @@ import type { CreateRoomPayload, JoinRoomPayload, RoomSummary } from "@/types/ro
 import type { AvatarId } from "@/types/game";
 import { GameRoom } from "@/server/game/GameRoom";
 import { generateId } from "@/lib/utils";
+import { persistMatchResult } from "./persist";
 
 type IoServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type IoSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -119,9 +120,39 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
 
     const gameRoom = rooms.get(roomId);
     if (gameRoom) {
+      // Capture before removal
+      const leftPlayer = gameRoom.room.players.find((p) => p.userId === userId);
+      const wasPlaying = gameRoom.gameState?.status === "playing";
+
       gameRoom.removePlayer(userId);
       socket.to(roomId).emit("room:player:left", userId);
-      if (gameRoom.isEmpty) {
+
+      const gs = gameRoom.gameState;
+
+      if (wasPlaying && gs) {
+        // Notify all remaining players with the player's name
+        io.to(roomId).emit("game:player_left", {
+          userId,
+          username: leftPlayer?.username ?? "A player",
+          remainingCount: gs.players.length,
+        });
+
+        if (gs.status === "finished") {
+          // 0 or 1 players remain — end the game
+          io.to(roomId).emit("game:finished", gs);
+          persistMatchResult(gs).catch((e) =>
+            console.error("[room:leave] persist failed:", e)
+          );
+          if (gameRoom.isEmpty) {
+            rooms.delete(roomId);
+            codeIndex.delete(gameRoom.room.code);
+          }
+        } else {
+          // 2+ players remain — game continues without the left player
+          io.to(roomId).emit("game:state", gs);
+          io.to(roomId).emit("room:updated", gameRoom.room);
+        }
+      } else if (gameRoom.isEmpty) {
         rooms.delete(roomId);
         codeIndex.delete(gameRoom.room.code);
       } else {

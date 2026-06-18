@@ -49,6 +49,8 @@ export interface ServerToClientEvents {
   "game:turn": (playerId: string) => void;
   /** Sent to a disconnected player when they reconnect — invites them back */
   "game:rejoin_invite": (payload: { roomId: string; roomName: string; invitedBy: string }) => void;
+  /** Sent to all remaining players when someone leaves during an active game */
+  "game:player_left": (payload: { userId: string; username: string; remainingCount: number }) => void;
 
   // Chat
   "chat:message": (msg: ChatMessage) => void;
