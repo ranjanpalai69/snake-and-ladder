@@ -565,17 +565,25 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
     };
     renderer.domElement.addEventListener("click", onClick);
 
-    // Resize → refit camera (both window resize and container resize via ResizeObserver)
+    // Resize → refit camera only when WIDTH changes (phone rotation / window resize).
+    // Mobile browser chrome show/hide only changes height — we skip camera reset in that
+    // case so the user's manual pan/zoom is preserved after rolling the dice.
+    let lastWidth = w;
     const onResize = () => {
       if (!mount) return;
       const nw = mount.clientWidth, nh = mount.clientHeight;
       if (!nw || !nh) return;
-      if (cameraRef.current) {
-        fitCamera(cameraRef.current, nw, nh);
-        controlsRef.current?.target.set(0, 0, 0);
-        controlsRef.current?.update();
-      }
       renderer.setSize(nw, nh);
+      if (cameraRef.current) {
+        cameraRef.current.aspect = nw / nh;
+        cameraRef.current.updateProjectionMatrix();
+        if (Math.abs(nw - lastWidth) > 30) {
+          fitCamera(cameraRef.current, nw, nh);
+          controlsRef.current?.target.set(0, 0, 0);
+          controlsRef.current?.update();
+          lastWidth = nw;
+        }
+      }
     };
     window.addEventListener("resize", onResize);
     const ro = new ResizeObserver(onResize);
