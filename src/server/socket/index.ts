@@ -3,9 +3,10 @@ import type { Server as HttpServer } from "http";
 import { createClient } from "@supabase/supabase-js";
 import type { ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData } from "@/types/socket";
 import { registerRoomHandlers, rooms } from "./handlers/room";
-import { registerGameHandlers } from "./handlers/game";
+import { registerGameHandlers, persistMatchResult } from "./handlers/game";
 import { registerChatHandlers } from "./handlers/chat";
 import { getCachedProfile, setCachedProfile, refreshProfileTTL } from "@/server/cache/profileCache";
+import { pendingRejoinInvites } from "@/server/socket/rejoinStore";
 
 // userId → socketId index for O(1) duplicate-connection eviction
 const userSocketIndex = new Map<string, string>();
@@ -136,6 +137,19 @@ export function createSocketServer(httpServer: HttpServer) {
     registerGameHandlers(io, socket);
     registerChatHandlers(io, socket);
 
+    // ── Deliver pending rejoin invite on connect ───────────────────────────
+    const pendingInvite = pendingRejoinInvites.get(userId);
+    if (pendingInvite && pendingInvite.expiresAt > Date.now()) {
+      const { roomId: invRoomId, roomName, invitedBy } = pendingInvite;
+      // Only deliver if game room still exists and is still playing
+      const invRoom = rooms.get(invRoomId);
+      if (invRoom && invRoom.gameState?.status === "playing") {
+        socket.emit("game:rejoin_invite", { roomId: invRoomId, roomName, invitedBy });
+      } else {
+        pendingRejoinInvites.delete(userId);
+      }
+    }
+
     // ── Reconnect handler ─────────────────────────────────────────────────
     socket.on("room:reconnect", ({ roomId }, cb) => {
       const gameRoom = rooms.get(roomId);
@@ -196,18 +210,60 @@ export function createSocketServer(httpServer: HttpServer) {
         io.to(roomId).emit("room:player:left", userId);
         if (gameRoom.isEmpty) rooms.delete(roomId);
       } else {
+        // Store pending rejoin invite (auto-invite when they reconnect)
+        if (gameRoom.gameState?.status === "playing") {
+          const hostPlayer = gameRoom.room.players.find((p) => p.userId === gameRoom.room.hostId);
+          pendingRejoinInvites.set(userId, {
+            roomId,
+            roomName: gameRoom.room.name,
+            invitedBy: hostPlayer?.username ?? "Host",
+            expiresAt: Date.now() + 90_000,
+          });
+        }
+
         // Give 90s to reconnect during active game before removing
         setTimeout(() => {
           const room = rooms.get(roomId);
           if (!room) return;
           const p = room.room.players.find((pl) => pl.userId === userId);
-          if (p && !p.isConnected) {
-            room.removePlayer(userId);
-            io.to(roomId).emit("room:player:left", userId);
-            if (room.gameState && room.gameState.players.length < 2) {
-              if (room.gameState) room.gameState.status = "finished";
-              io.to(roomId).emit("game:finished", room.gameState!);
+          if (!p || p.isConnected) return; // reconnected — do nothing
+
+          // Clear pending invite — they didn't come back
+          pendingRejoinInvites.delete(userId);
+
+          room.removePlayer(userId);
+          io.to(roomId).emit("room:player:left", userId);
+
+          const gs = room.gameState;
+          if (!gs) return;
+
+          const remaining = gs.players.filter((pl) => pl.userId !== userId);
+          if (remaining.length === 0 || !room.room.players.some((pl) => pl.isConnected)) {
+            // All players gone — abandon and persist
+            gs.status = "finished";
+            io.to(roomId).emit("game:finished", gs);
+            persistMatchResult(gs, "abandoned").catch((e) =>
+              console.error("[socket:disconnect] persist abandoned failed:", e)
+            );
+            rooms.delete(roomId);
+          } else if (gs.players.length < 2) {
+            // Only one player left in state — game over
+            gs.status = "finished";
+            io.to(roomId).emit("game:finished", gs);
+            persistMatchResult(gs).catch((e) =>
+              console.error("[socket:disconnect] persist failed:", e)
+            );
+          } else {
+            // Advance turn index if it pointed at the removed slot
+            if (gs.currentPlayerIndex >= gs.players.length) {
+              gs.currentPlayerIndex = 0;
             }
+            io.to(roomId).emit("game:state", gs);
+            io.to(roomId).emit("system:notification", {
+              type: "warning",
+              message: `${p.username} left the game.`,
+              timestamp: Date.now(),
+            });
           }
         }, 90_000);
       }

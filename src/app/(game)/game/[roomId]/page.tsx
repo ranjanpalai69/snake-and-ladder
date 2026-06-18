@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Copy, ArrowLeft, Loader2, Bell, Dices, Users, MessageSquare } from "lucide-react";
+import { Check, Copy, ArrowLeft, Loader2, Bell, Dices, Users, MessageSquare, UserMinus, Send } from "lucide-react";
 import { PLAYER_COLORS, type PlayerColor, type GamePlayer } from "@/types/game";
 import { DynamicGameScene } from "@/components/3d/DynamicScene";
 import { PlayerPanel } from "@/components/game/PlayerPanel";
@@ -16,7 +16,97 @@ import { useSocket } from "@/hooks/useSocket";
 import { useRoomStore } from "@/stores/roomStore";
 import { useGameStore } from "@/stores/gameStore";
 import { useAuthStore } from "@/stores/authStore";
+import { getSocket } from "@/lib/socket/client";
 import toast from "react-hot-toast";
+
+// ── Dice reveal overlay ───────────────────────────────────────────────────────
+const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+
+function DiceRevealOverlay({ value }: { value: number }) {
+  return (
+    <AnimatePresence>
+      <motion.div
+        key={value}
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 1.3 }}
+        transition={{ type: "spring", stiffness: 400, damping: 22 }}
+        className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+        style={{ background: "rgba(0,0,0,0.55)" }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <span style={{ fontSize: 100, lineHeight: 1 }}>{DICE_FACES[value - 1]}</span>
+          <span className="font-display text-white text-4xl font-black tracking-widest drop-shadow-lg">
+            {value}
+          </span>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ── Disconnected player management ────────────────────────────────────────────
+function DisconnectedPlayerActions({
+  players,
+  myUserId,
+  hostId,
+}: {
+  players: GamePlayer[];
+  myUserId: string | undefined;
+  hostId: string | undefined;
+}) {
+  const disconnected = players.filter((p) => !p.isConnected);
+  if (disconnected.length === 0) return null;
+
+  const isHost = myUserId === hostId;
+
+  function kickPlayer(targetUserId: string) {
+    getSocket().emit("game:kick_player", { targetUserId }, (res) => {
+      if (!res.success) toast.error(res.error ?? "Cannot remove player");
+    });
+  }
+
+  function inviteRejoin(targetUserId: string) {
+    getSocket().emit("game:invite_rejoin", { targetUserId });
+    toast("Rejoin invite sent!", { icon: "📨", duration: 2000 });
+  }
+
+  return (
+    <div className="rounded-xl bg-amber-950/30 border border-amber-500/30 p-3 space-y-2">
+      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Disconnected</p>
+      {disconnected.map((p) => {
+        const hex = PLAYER_COLORS[p.color] ?? "#6366f1";
+        return (
+          <div key={p.userId} className="flex items-center gap-2">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 opacity-60"
+              style={{ background: hex }}
+            >
+              {p.username.slice(0, 2).toUpperCase()}
+            </div>
+            <span className="flex-1 text-xs text-slate-400 truncate">{p.username}</span>
+            <button
+              onClick={() => inviteRejoin(p.userId)}
+              title="Send rejoin invite"
+              className="p-1.5 rounded-lg text-violet-400 hover:bg-violet-500/20 transition-colors"
+            >
+              <Send className="w-3 h-3" />
+            </button>
+            {isHost && (
+              <button
+                onClick={() => kickPlayer(p.userId)}
+                title="Remove player & continue"
+                className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors"
+              >
+                <UserMinus className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── Reconnecting overlay ──────────────────────────────────────────────────────
 function ReconnectingOverlay() {
@@ -304,10 +394,12 @@ function MobileGamePanel({
   players,
   currentPlayerUserId,
   myUserId,
+  hostId,
 }: {
   players: GamePlayer[];
   currentPlayerUserId: string | undefined;
   myUserId: string | undefined;
+  hostId: string | undefined;
 }) {
   const [tab, setTab] = useState<"controls" | "players" | "chat">("controls");
 
@@ -320,7 +412,7 @@ function MobileGamePanel({
   return (
     <div
       className="lg:hidden flex flex-col shrink-0 bg-black/60 backdrop-blur-md border-t border-white/8"
-      style={{ maxHeight: "240px" }}
+      style={{ maxHeight: "260px" }}
     >
       {/* Tab bar */}
       <div className="flex shrink-0 border-b border-white/8">
@@ -341,14 +433,17 @@ function MobileGamePanel({
       </div>
 
       {/* Tab content */}
-      <div className="overflow-y-auto flex-1 p-3">
+      <div className="overflow-y-auto flex-1 p-3 space-y-2">
         {tab === "controls" && <GameControls />}
         {tab === "players" && (
-          <PlayerPanel
-            players={players}
-            currentPlayerUserId={currentPlayerUserId}
-            myUserId={myUserId}
-          />
+          <>
+            <DisconnectedPlayerActions players={players} myUserId={myUserId} hostId={hostId} />
+            <PlayerPanel
+              players={players}
+              currentPlayerUserId={currentPlayerUserId}
+              myUserId={myUserId}
+            />
+          </>
         )}
         {tab === "chat" && <ChatPanel />}
       </div>
@@ -359,7 +454,7 @@ function MobileGamePanel({
 // ── Main page ─────────────────────────────────────────────────────────────────
 function GamePageInner() {
   const params = useParams<{ roomId: string }>();
-  const { gameState, isReconnecting, setGameState } = useGameStore();
+  const { gameState, isReconnecting, setGameState, diceReveal } = useGameStore();
   const { currentRoom, persistedRoomId, isConnected } = useRoomStore();
   const { user } = useAuthStore();
   const { leaveRoom } = useSocket();
@@ -462,6 +557,7 @@ function GamePageInner() {
         <div className="flex-1 relative min-h-0">
           <DynamicGameScene />
           {isReconnecting && <ReconnectingOverlay />}
+          {diceReveal !== null && <DiceRevealOverlay value={diceReveal} />}
         </div>
 
         {/* Desktop sidebar — hidden on mobile */}
@@ -471,6 +567,11 @@ function GamePageInner() {
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
           className="hidden lg:flex w-80 flex-col gap-3 p-4 bg-black/40 border-l border-white/8 overflow-y-auto"
         >
+          <DisconnectedPlayerActions
+            players={gameState.players}
+            myUserId={user?.id}
+            hostId={currentRoom?.hostId}
+          />
           <PlayerPanel
             players={gameState.players}
             currentPlayerUserId={currentPlayerUserId}
@@ -485,6 +586,7 @@ function GamePageInner() {
           players={gameState.players}
           currentPlayerUserId={currentPlayerUserId}
           myUserId={user?.id}
+          hostId={currentRoom?.hostId}
         />
       </div>
 

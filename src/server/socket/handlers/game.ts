@@ -1,15 +1,17 @@
 import type { Server, Socket } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData } from "@/types/socket";
-import { rooms } from "./room";
+import { rooms, getRoomSummaries } from "./room";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { calculateNewRank, calculateXpGain, calculateLevel } from "@/lib/game/engine";
 import type { GameState } from "@/types/game";
+import { pendingRejoinInvites } from "@/server/socket/rejoinStore";
 
 type IoServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type IoSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
 export function registerGameHandlers(io: IoServer, socket: IoSocket) {
   const userId = socket.data.userId;
+  const username = socket.data.username;
 
   socket.on("game:roll", async (cb) => {
     const roomId = socket.data.roomId;
@@ -38,10 +40,88 @@ export function registerGameHandlers(io: IoServer, socket: IoSocket) {
 
     cb({ success: true, data: move });
   });
+
+  // ── Host kicks a disconnected/refusing player ─────────────────────────────
+  socket.on("game:kick_player", ({ targetUserId }, cb) => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return cb({ success: false, error: "Not in a room" });
+
+    const gameRoom = rooms.get(roomId);
+    if (!gameRoom) return cb({ success: false, error: "Room not found" });
+    if (gameRoom.room.hostId !== userId) return cb({ success: false, error: "Only the host can remove players" });
+
+    const target = gameRoom.room.players.find((p) => p.userId === targetUserId);
+    if (!target) return cb({ success: false, error: "Player not found in room" });
+    if (target.isConnected) return cb({ success: false, error: "Cannot kick a connected player" });
+
+    // Remove the player from game state
+    gameRoom.removePlayer(targetUserId);
+
+    // Clear any pending invite for that user
+    pendingRejoinInvites.delete(targetUserId);
+
+    const gs = gameRoom.gameState;
+    if (!gs) return cb({ success: false, error: "No active game" });
+
+    // If fewer than 2 players remain, end the game
+    if (gs.players.length < 2) {
+      gs.status = "finished";
+      io.to(roomId).emit("game:finished", gs);
+      persistMatchResult(gs).catch((err) => console.error("[game:kick] persist failed:", err));
+    } else {
+      // Advance turn if needed so the game doesn't get stuck on the kicked player
+      if (gs.currentPlayerIndex >= gs.players.length) {
+        gs.currentPlayerIndex = 0;
+      }
+      io.to(roomId).emit("game:state", gs);
+      io.to(roomId).emit("room:updated", gameRoom.room);
+      io.to(roomId).emit("system:notification", {
+        type: "info",
+        message: `${target.username} was removed from the game.`,
+        timestamp: Date.now(),
+      });
+    }
+
+    io.emit("room:list:updated", getRoomSummaries());
+    cb({ success: true, data: gs });
+  });
+
+  // ── Send/re-send a rejoin invite to a disconnected player ─────────────────
+  socket.on("game:invite_rejoin", ({ targetUserId }) => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+
+    const gameRoom = rooms.get(roomId);
+    if (!gameRoom || gameRoom.gameState?.status !== "playing") return;
+
+    const target = gameRoom.room.players.find((p) => p.userId === targetUserId);
+    if (!target || target.isConnected) return;
+
+    // Store/refresh the pending invite
+    pendingRejoinInvites.set(targetUserId, {
+      roomId,
+      roomName: gameRoom.room.name,
+      invitedBy: username,
+      expiresAt: Date.now() + 90_000,
+    });
+
+    // If the target user has an active socket, deliver immediately
+    const sockets = io.sockets.sockets;
+    for (const [, s] of sockets) {
+      if ((s as typeof socket).data.userId === targetUserId) {
+        s.emit("game:rejoin_invite", {
+          roomId,
+          roomName: gameRoom.room.name,
+          invitedBy: username,
+        });
+        break;
+      }
+    }
+  });
 }
 
-async function persistMatchResult(state: GameState) {
-  // Use untyped client to avoid strict Supabase type inference issues
+// ── Persist match result to Supabase ────────────────────────────────────────
+export async function persistMatchResult(state: GameState, status = "finished") {
   const supabase = getSupabaseAdminClient() as any;
 
   const { data: match, error } = await supabase
@@ -49,9 +129,9 @@ async function persistMatchResult(state: GameState) {
     .insert({
       room_id: state.roomId,
       winner_id: state.winner?.userId ?? null,
-      status: "finished",
+      status,
       started_at: state.startedAt ? new Date(state.startedAt).toISOString() : null,
-      finished_at: state.finishedAt ? new Date(state.finishedAt).toISOString() : null,
+      finished_at: state.finishedAt ? new Date(state.finishedAt ?? Date.now()).toISOString() : null,
       game_data: state,
     })
     .select("id")

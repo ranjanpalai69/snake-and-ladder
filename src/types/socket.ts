@@ -6,14 +6,19 @@ export interface ClientToServerEvents {
   // Room
   "room:create": (payload: CreateRoomPayload, cb: (res: SocketResponse<Room>) => void) => void;
   "room:join": (payload: JoinRoomPayload, cb: (res: SocketResponse<Room>) => void) => void;
-  "room:reconnect": (payload: { roomId: string }, cb: (res: SocketResponse<{ room: Room; gameState: import("./game").GameState | null }>) => void) => void;
+  "room:reconnect": (payload: { roomId: string }, cb: (res: SocketResponse<{ room: Room; gameState: GameState | null }>) => void) => void;
   "room:leave": () => void;
   "room:list": (cb: (res: SocketResponse<RoomSummary[]>) => void) => void;
   "room:ready": () => void;
   "room:choose_color": (payload: { color: import("./game").PlayerColor }, cb: (res: SocketResponse<Room>) => void) => void;
+  "room:get_state": (cb: (res: SocketResponse<{ room: Room; gameState: GameState | null }>) => void) => void;
 
   // Game
   "game:roll": (cb: (res: SocketResponse<GameMove>) => void) => void;
+  /** Host kicks a disconnected player — game continues with remaining players */
+  "game:kick_player": (payload: { targetUserId: string }, cb: (res: SocketResponse<GameState>) => void) => void;
+  /** Send/re-send a rejoin invite to a disconnected player */
+  "game:invite_rejoin": (payload: { targetUserId: string }) => void;
 
   // Chat
   "chat:message": (message: string) => void;
@@ -23,9 +28,6 @@ export interface ClientToServerEvents {
 
   // Ready reminder (sent by a ready player to ping unready ones)
   "room:ping_ready": () => void;
-
-  // Explicit state refresh — call when UI may have missed events
-  "room:get_state": (cb: (res: SocketResponse<{ room: Room; gameState: GameState | null }>) => void) => void;
 }
 
 // ── Events the SERVER sends to the CLIENT ──────────────────────────────────
@@ -42,6 +44,8 @@ export interface ServerToClientEvents {
   "game:move": (move: GameMove & { newState: GameState }) => void;
   "game:finished": (state: GameState) => void;
   "game:turn": (playerId: string) => void;
+  /** Sent to a disconnected player when they reconnect — invites them back */
+  "game:rejoin_invite": (payload: { roomId: string; roomName: string; invitedBy: string }) => void;
 
   // Chat
   "chat:message": (msg: ChatMessage) => void;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ function AuthInitializer() {
  * useSocket() for actions (emit) only.
  */
 function SocketInitializer() {
+  const router = useRouter();
   const { session, profile } = useAuthStore();
   const {
     setCurrentRoom,
@@ -36,6 +38,7 @@ function SocketInitializer() {
     setRolling,
     setReconnecting,
     setLastMove,
+    setDiceReveal,
   } = useGameStore();
   const boundRef = useRef(false);
 
@@ -158,9 +161,14 @@ function SocketInitializer() {
     socket.on("game:state", (state) => setGameState(state));
 
     socket.on("game:move", ({ newState, ...move }) => {
+      // Show dice reveal overlay for 1 second, then animate piece
       setGameState(newState);
-      setLastMove(move as any);
       setRolling(false);
+      setDiceReveal((move as any).diceValue ?? null);
+      setTimeout(() => {
+        setLastMove(move as any);
+        setDiceReveal(null);
+      }, 1000);
     });
 
     socket.on("game:finished", (state) => {
@@ -170,6 +178,61 @@ function SocketInitializer() {
 
     // game:turn is informational — currentPlayerIndex is already in game:move payload
     socket.on("game:turn", () => {});
+
+    // ── Rejoin invite ─────────────────────────────────────────────────────
+    socket.on("game:rejoin_invite", ({ roomId, roomName, invitedBy }) => {
+      toast(
+        (t) => (
+          <span style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span>
+              <strong>{invitedBy}</strong> invites you back to <strong>{roomName}</strong>
+            </span>
+            <span style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  router.push(`/game/${roomId}`);
+                }}
+                style={{
+                  background: "#6366f1",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Rejoin
+              </button>
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                style={{
+                  background: "transparent",
+                  color: "#94a3b8",
+                  border: "1px solid rgba(148,163,184,0.3)",
+                  borderRadius: 8,
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                Dismiss
+              </button>
+            </span>
+          </span>
+        ),
+        {
+          duration: 30_000,
+          style: {
+            background: "#1e1b4b",
+            border: "1px solid rgba(99,102,241,0.5)",
+            color: "#e2e8f0",
+            borderRadius: 12,
+            maxWidth: 320,
+          },
+        }
+      );
+    });
 
     // ── Chat ───────────────────────────────────────────────────────────────
     socket.on("chat:message", (msg) => addChatMessage(msg));
@@ -214,6 +277,7 @@ function SocketInitializer() {
       socket.off("game:move");
       socket.off("game:finished");
       socket.off("game:turn");
+      socket.off("game:rejoin_invite");
       socket.off("chat:message");
       socket.off("system:error");
       socket.off("system:notification");

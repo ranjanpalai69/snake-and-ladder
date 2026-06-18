@@ -8,15 +8,17 @@ interface GameStore {
   pendingMove: GameMove | null;
   lastMove: GameMove | null;
   isRolling: boolean;
+  /** Dice value being revealed (shown as overlay ~1s before piece moves) */
+  diceReveal: number | null;
   chatMessages: ChatMessage[];
   showWinModal: boolean;
-  /** Whether we're currently mid-reconnect attempt */
   isReconnecting: boolean;
 
   setGameState: (state: GameState | null) => void;
   setPendingMove: (move: GameMove | null) => void;
   setLastMove: (move: GameMove | null) => void;
   setRolling: (rolling: boolean) => void;
+  setDiceReveal: (value: number | null) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setShowWinModal: (show: boolean) => void;
   setReconnecting: (v: boolean) => void;
@@ -30,6 +32,7 @@ export const useGameStore = create<GameStore>()(
       pendingMove: null,
       lastMove: null,
       isRolling: false,
+      diceReveal: null,
       chatMessages: [],
       showWinModal: false,
       isReconnecting: false,
@@ -38,6 +41,7 @@ export const useGameStore = create<GameStore>()(
       setPendingMove: (pendingMove) => set({ pendingMove }),
       setLastMove: (lastMove) => set({ lastMove }),
       setRolling: (isRolling) => set({ isRolling }),
+      setDiceReveal: (diceReveal) => set({ diceReveal }),
       addChatMessage: (msg) =>
         set((s) => ({ chatMessages: [...s.chatMessages.slice(-99), msg] })),
       setShowWinModal: (showWinModal) => set({ showWinModal }),
@@ -48,6 +52,7 @@ export const useGameStore = create<GameStore>()(
           pendingMove: null,
           lastMove: null,
           isRolling: false,
+          diceReveal: null,
           chatMessages: [],
           showWinModal: false,
           isReconnecting: false,
@@ -55,10 +60,9 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: "sal-game",
-      // Persist game state and chat so the board is visible immediately on refresh
       partialize: (state) => ({
         gameState: state.gameState,
-        chatMessages: state.chatMessages.slice(-20), // Keep last 20 messages
+        chatMessages: state.chatMessages.slice(-20),
       }),
     }
   )

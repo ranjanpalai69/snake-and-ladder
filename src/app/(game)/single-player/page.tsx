@@ -96,8 +96,10 @@ function ModePicker({ onSelect }: { onSelect: (withBot: boolean) => void }) {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
+const SP_DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+
 function SinglePlayerPageInner() {
-  const { gameState, setGameState, setRolling, isRolling, reset, setShowWinModal, setLastMove } = useGameStore();
+  const { gameState, setGameState, setRolling, isRolling, reset, setShowWinModal, setLastMove, diceReveal, setDiceReveal } = useGameStore();
   const { user, profile } = useAuthStore();
 
   const [mounted, setMounted] = useState(false);
@@ -147,11 +149,16 @@ function SinglePlayerPageInner() {
       if (!player || player.userId === BOT_ID) { setRolling(false); return; }
       const diceValue = rollDice();
       const { newState, move } = applyMove(latest, player.id, diceValue);
-      setLastMove(move);
       setGameState(newState);
-      if (newState.winner) setShowWinModal(true);
+      setRolling(false);
+      setDiceReveal(diceValue);
+      setTimeout(() => {
+        setLastMove(move);
+        setDiceReveal(null);
+        if (newState.winner) setShowWinModal(true);
+      }, 1000);
     }, 700);
-  }, [isRolling, setGameState, setRolling, setShowWinModal, setLastMove]);
+  }, [isRolling, setGameState, setRolling, setShowWinModal, setLastMove, setDiceReveal]);
 
   // Called by ThreeScene when all animations complete
   const handleAnimDone = useCallback(() => {
@@ -186,9 +193,14 @@ function SinglePlayerPageInner() {
 
         const diceValue = rollDice();
         const { newState, move } = applyMove(gs, player.id, diceValue);
-        setLastMove(move);
         setGameState(newState);
-        if (newState.winner) setShowWinModal(true);
+        setRolling(false);
+        setDiceReveal(diceValue);
+        setTimeout(() => {
+          setLastMove(move);
+          setDiceReveal(null);
+          if (newState.winner) setShowWinModal(true);
+        }, 1000);
       }, 700);
     }, 1200);
 
@@ -242,6 +254,26 @@ function SinglePlayerPageInner() {
             onRollOverride={handleRoll}
             onAnimDone={handleAnimDone}
           />
+          <AnimatePresence>
+            {diceReveal !== null && (
+              <motion.div
+                key={diceReveal}
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.3 }}
+                transition={{ type: "spring", stiffness: 400, damping: 22 }}
+                className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+                style={{ background: "rgba(0,0,0,0.55)" }}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <span style={{ fontSize: 100, lineHeight: 1 }}>{SP_DICE_FACES[diceReveal - 1]}</span>
+                  <span className="font-display text-white text-4xl font-black tracking-widest drop-shadow-lg">
+                    {diceReveal}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <motion.div
