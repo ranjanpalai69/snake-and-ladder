@@ -50,6 +50,9 @@ export interface ServerToClientEvents {
 
   // Sent to unready players when another player pings them
   "room:remind_ready": (payload: { fromUsername: string }) => void;
+
+  // Countdown before game starts (server-driven, emitted once with seconds=3)
+  "room:countdown": (payload: { seconds: number }) => void;
 }
 
 // ── Inter-server events (for scaling with Redis adapter) ───────────────────

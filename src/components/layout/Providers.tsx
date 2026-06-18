@@ -22,7 +22,7 @@ function AuthInitializer() {
  */
 function SocketInitializer() {
   const { session, profile } = useAuthStore();
-  const { setCurrentRoom, setPublicRooms, setConnected, setPersistedRoomId } = useRoomStore();
+  const { setCurrentRoom, setPublicRooms, setConnected, setPersistedRoomId, setCountdown } = useRoomStore();
   const { setGameState, addChatMessage, setShowWinModal, setRolling, setReconnecting, setLastMove } = useGameStore();
   const boundRef = useRef(false);
 
@@ -88,7 +88,8 @@ function SocketInitializer() {
 
     socket.on("room:updated", (room) => setCurrentRoom(room));
     socket.on("room:list:updated", (rooms) => setPublicRooms(rooms));
-    socket.on("game:started", (state) => { setGameState(state); toast.success("Game started! Good luck!"); });
+    socket.on("room:countdown", ({ seconds }) => setCountdown(seconds));
+    socket.on("game:started", (state) => { setCountdown(null); setGameState(state); toast.success("Game started! Good luck!"); });
     socket.on("game:state", (state) => setGameState(state));
     socket.on("game:move", ({ newState, ...move }) => { setGameState(newState); setLastMove(move as any); setRolling(false); });
     socket.on("game:finished", (state) => { setGameState(state); setShowWinModal(true); });
@@ -121,6 +122,7 @@ function SocketInitializer() {
       socket.io.off("reconnect", onReconnect);
       socket.off("room:updated");
       socket.off("room:list:updated");
+      socket.off("room:countdown");
       socket.off("game:started");
       socket.off("game:state");
       socket.off("game:move");

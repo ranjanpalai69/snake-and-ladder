@@ -133,8 +133,14 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
     io.to(roomId).emit("room:updated", gameRoom.room);
 
     if (allReady) {
-      const gameState = gameRoom.startGame();
-      io.to(roomId).emit("game:started", gameState);
+      // Broadcast countdown: 3 → 2 → 1, then start
+      io.to(roomId).emit("room:countdown", { seconds: 3 });
+      setTimeout(() => io.to(roomId).emit("room:countdown", { seconds: 2 }), 1000);
+      setTimeout(() => io.to(roomId).emit("room:countdown", { seconds: 1 }), 2000);
+      setTimeout(() => {
+        const gameState = gameRoom.startGame();
+        io.to(roomId).emit("game:started", gameState);
+      }, 3000);
     }
   });
 

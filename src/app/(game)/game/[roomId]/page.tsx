@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Check, Copy, ArrowLeft, Loader2, Bell } from "lucide-react";
 import { PLAYER_COLORS, type PlayerColor } from "@/types/game";
 import { DynamicGameScene } from "@/components/3d/DynamicScene";
@@ -42,7 +42,7 @@ const ALL_COLORS = Object.keys(PLAYER_COLORS) as PlayerColor[];
 
 // ── Waiting room ──────────────────────────────────────────────────────────────
 function WaitingRoom() {
-  const { currentRoom } = useRoomStore();
+  const { currentRoom, countdown } = useRoomStore();
   const { user } = useAuthStore();
   const { setReady, leaveRoom, chooseColor, pingReady } = useSocket();
   const router = useRouter();
@@ -105,8 +105,36 @@ function WaitingRoom() {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md glass rounded-2xl p-6 space-y-5"
+        className="w-full max-w-md glass rounded-2xl p-6 space-y-5 relative overflow-hidden"
       >
+        {/* ── Countdown overlay ─────────────────────────────────────────── */}
+        <AnimatePresence>
+          {countdown !== null && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 rounded-2xl bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center z-20 gap-4"
+            >
+              <p className="text-xs font-semibold text-violet-400 uppercase tracking-widest">
+                All players ready!
+              </p>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={countdown}
+                  initial={{ scale: 1.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="w-28 h-28 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-2xl shadow-violet-900/60"
+                >
+                  <span className="font-display text-6xl font-black text-white">{countdown}</span>
+                </motion.div>
+              </AnimatePresence>
+              <p className="text-slate-400 text-sm">Game starting…</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Header */}
         <div className="flex items-center gap-2">
           <button
