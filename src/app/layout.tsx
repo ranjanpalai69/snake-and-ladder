@@ -217,6 +217,11 @@ export const metadata: Metadata = {
     creator: "@snakeladder3d",
   },
   manifest: "/manifest.json",
+  icons: {
+    icon: "/assets/icons/snake-ladder-favicon.png",
+    shortcut: "/assets/icons/snake-ladder-favicon.png",
+    apple: "/assets/icons/snake-ladder-favicon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -252,10 +257,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         {/* DNS prefetch for third-party services */}
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-        {/* Favicon variants */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/assets/icons/icon-192.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/assets/icons/icon-192.png" />
+        {/* Favicon */}
+        <link rel="icon" href="/assets/icons/snake-ladder-favicon.png" type="image/png" />
+        <link rel="icon" href="/assets/icons/snake-ladder-favicon.png" sizes="32x32" type="image/png" />
+        <link rel="apple-touch-icon" href="/assets/icons/snake-ladder-favicon.png" />
         {/* Structured data — JSON-LD */}
         <script
           type="application/ld+json"
