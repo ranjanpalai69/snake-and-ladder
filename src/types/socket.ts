@@ -22,6 +22,7 @@ export interface ClientToServerEvents {
 
   // Chat
   "chat:message": (message: string) => void;
+  "chat:typing": (payload: { isTyping: boolean }) => void;
 
   // Presence
   "presence:ping": () => void;
@@ -49,6 +50,7 @@ export interface ServerToClientEvents {
 
   // Chat
   "chat:message": (msg: ChatMessage) => void;
+  "chat:typing": (payload: { userId: string; username: string; isTyping: boolean }) => void;
 
   // System
   "system:error": (message: string) => void;

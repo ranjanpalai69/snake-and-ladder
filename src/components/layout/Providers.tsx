@@ -39,6 +39,8 @@ function SocketInitializer() {
     setReconnecting,
     setLastMove,
     setDiceReveal,
+    setTypingUser,
+    incrementUnread,
   } = useGameStore();
   const boundRef = useRef(false);
 
@@ -240,7 +242,15 @@ function SocketInitializer() {
     });
 
     // ── Chat ───────────────────────────────────────────────────────────────
-    socket.on("chat:message", (msg) => addChatMessage(msg));
+    socket.on("chat:message", (msg) => {
+      addChatMessage(msg);
+      // Increment unread if the chat panel is not currently visible
+      incrementUnread();
+    });
+
+    socket.on("chat:typing", ({ userId, username, isTyping }) => {
+      setTypingUser({ userId, username }, isTyping);
+    });
 
     // ── System ────────────────────────────────────────────────────────────
     socket.on("system:error", (msg) => toast.error(msg));
@@ -284,6 +294,7 @@ function SocketInitializer() {
       socket.off("game:turn");
       socket.off("game:rejoin_invite");
       socket.off("chat:message");
+      socket.off("chat:typing");
       socket.off("system:error");
       socket.off("system:notification");
       socket.off("room:remind_ready");

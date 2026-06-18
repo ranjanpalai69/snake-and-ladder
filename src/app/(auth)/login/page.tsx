@@ -3,12 +3,11 @@
 import { Suspense, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
-import { Mail, Lock, Loader2, Swords, Eye, EyeOff } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Mail, Lock, Loader2, Swords, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import toast from "react-hot-toast";
 
-// Google icon inline SVG (no emoji, pure SVG)
 function GoogleIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -18,6 +17,21 @@ function GoogleIcon() {
       <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
     </svg>
   );
+}
+
+function mapAuthError(msg: string): { message: string; action?: "resend" | "signup" } {
+  const lower = msg.toLowerCase();
+  if (lower.includes("invalid login") || lower.includes("invalid credentials") || lower.includes("wrong password"))
+    return { message: "Email or password is incorrect." };
+  if (lower.includes("email not confirmed"))
+    return { message: "Your email hasn't been confirmed yet.", action: "resend" };
+  if (lower.includes("user not found"))
+    return { message: "No account found with this email.", action: "signup" };
+  if (lower.includes("too many requests") || lower.includes("rate limit"))
+    return { message: "Too many attempts. Please wait a few minutes and try again." };
+  if (lower.includes("network") || lower.includes("fetch"))
+    return { message: "Network error — please check your connection." };
+  return { message: msg };
 }
 
 function LoginForm() {
@@ -31,14 +45,38 @@ function LoginForm() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [fieldError, setFieldError] = useState<{ message: string; action?: "resend" | "signup" } | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+
+  async function handleResendConfirmation() {
+    if (!email) return;
+    setResendLoading(true);
+    const supabase = getSupabaseBrowserClient();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${appUrl}/auth/callback?next=/lobby` },
+    });
+    setResendLoading(false);
+    if (error) toast.error(error.message);
+    else toast.success("Confirmation email resent! Check your inbox.");
+  }
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
+    setFieldError(null);
     setLoading(true);
     const supabase = getSupabaseBrowserClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { toast.error(error.message); setLoading(false); }
-    else { toast.success("Welcome back!"); router.push(redirectTo); }
+    if (error) {
+      setFieldError(mapAuthError(error.message));
+      setLoading(false);
+    } else {
+      toast.success("Welcome back!");
+      router.push(redirectTo);
+      router.refresh();
+    }
   }
 
   async function handleGoogleLogin() {
@@ -47,30 +85,36 @@ function LoginForm() {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
-      },
+      options: { redirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(redirectTo)}` },
     });
     if (error) { toast.error(error.message); setGoogleLoading(false); }
   }
 
   return (
     <div className="glass rounded-2xl p-6 space-y-4">
-      {authError === "auth_callback_failed" && (
-        <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-          Authentication failed. Please try again.
-        </div>
-      )}
+      {/* System-level auth error (OAuth callback failure) */}
+      <AnimatePresence>
+        {authError === "auth_callback_failed" && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs"
+          >
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            Authentication failed. Please try again or use a different method.
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Google OAuth */}
       <button
         type="button"
         onClick={handleGoogleLogin}
-        disabled={googleLoading}
+        disabled={googleLoading || loading}
         className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-medium hover:bg-white/10 transition-all disabled:opacity-50"
       >
         {googleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
-        {googleLoading ? "Redirecting..." : "Continue with Google"}
+        {googleLoading ? "Redirecting…" : "Continue with Google"}
       </button>
 
       <div className="flex items-center gap-3">
@@ -79,60 +123,103 @@ function LoginForm() {
         <div className="flex-1 h-px bg-white/10" />
       </div>
 
-    <form onSubmit={handleLogin} className="space-y-4">
-      <div>
-        <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Email</label>
-        <div className="relative">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
-          />
-        </div>
-      </div>
+      <form onSubmit={handleLogin} className="space-y-4" noValidate>
+        {/* Inline error banner */}
+        <AnimatePresence>
+          {fieldError && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs"
+            >
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <div className="space-y-1.5">
+                <p>{fieldError.message}</p>
+                {fieldError.action === "resend" && (
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resendLoading}
+                    className="underline text-red-300 hover:text-red-200 disabled:opacity-50"
+                  >
+                    {resendLoading ? "Sending…" : "Resend confirmation email"}
+                  </button>
+                )}
+                {fieldError.action === "signup" && (
+                  <Link href="/signup" className="underline text-red-300 hover:text-red-200">
+                    Create an account instead
+                  </Link>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <div>
-        <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Password</label>
-        <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            type={showPass ? "text" : "password"}
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder:text-slate-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPass((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-          >
-            {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Email</label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setFieldError(null); }}
+              placeholder="you@example.com"
+              className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
+            />
+          </div>
         </div>
-      </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60 hover:opacity-90 transition-opacity mt-2"
-      >
-        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-        {loading ? "Signing in..." : "Sign In"}
-      </button>
-    </form>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+            <Link
+              href="/forgot-password"
+              className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type={showPass ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setFieldError(null); }}
+              placeholder="••••••••"
+              className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder:text-slate-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              tabIndex={-1}
+            >
+              {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60 hover:opacity-90 transition-opacity"
+        >
+          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+          {loading ? "Signing in…" : "Sign In"}
+        </button>
+      </form>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}

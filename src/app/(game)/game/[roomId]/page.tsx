@@ -402,11 +402,12 @@ function MobileGamePanel({
   hostId: string | undefined;
 }) {
   const [tab, setTab] = useState<"controls" | "players" | "chat">("controls");
+  const { unreadChatCount, clearUnread } = useGameStore();
 
   const tabs = [
-    { key: "controls" as const, label: "Controls", Icon: Dices },
-    { key: "players" as const, label: "Players", Icon: Users },
-    { key: "chat" as const, label: "Chat", Icon: MessageSquare },
+    { key: "controls" as const, label: "Controls", Icon: Dices, badge: 0 },
+    { key: "players" as const, label: "Players", Icon: Users, badge: 0 },
+    { key: "chat" as const, label: "Chat", Icon: MessageSquare, badge: tab !== "chat" ? unreadChatCount : 0 },
   ];
 
   return (
@@ -416,11 +417,11 @@ function MobileGamePanel({
     >
       {/* Tab bar */}
       <div className="flex shrink-0 border-b border-white/8">
-        {tabs.map(({ key, label, Icon }) => (
+        {tabs.map(({ key, label, Icon, badge }) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
-            className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors ${
+            onClick={() => { setTab(key); if (key === "chat") clearUnread(); }}
+            className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors relative ${
               tab === key
                 ? "text-violet-400 border-b-2 border-violet-500"
                 : "text-slate-500 hover:text-slate-300"
@@ -428,6 +429,11 @@ function MobileGamePanel({
           >
             <Icon className="w-3.5 h-3.5" />
             <span className="hidden xs:inline">{label}</span>
+            {badge > 0 && (
+              <span className="absolute top-1 right-2 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -445,7 +451,7 @@ function MobileGamePanel({
             />
           </>
         )}
-        {tab === "chat" && <ChatPanel />}
+        {tab === "chat" && <ChatPanel onActive={clearUnread} />}
       </div>
     </div>
   );
@@ -578,7 +584,9 @@ function GamePageInner() {
             myUserId={user?.id}
           />
           <GameControls />
-          <ChatPanel />
+          <div className="flex-1 min-h-0">
+            <ChatPanel onActive={() => useGameStore.getState().clearUnread()} />
+          </div>
         </motion.div>
 
         {/* Mobile bottom panel — hidden on desktop */}
