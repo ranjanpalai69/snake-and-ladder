@@ -262,6 +262,8 @@ function SocketInitializer() {
               <button
                 onClick={() => {
                   toast.dismiss(t.id);
+                  // Ensure persistedRoomId is set so game page can reconnect
+                  useRoomStore.getState().setPersistedRoomId(roomId);
                   router.push(`/game/${roomId}`);
                 }}
                 style={{

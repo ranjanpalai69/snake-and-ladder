@@ -592,24 +592,8 @@ function GamePageInner() {
   const [mounted, setMounted] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const leaveTargetRef = useRef<string | null>(null);
-  // Tracks whether the user has already left via modal/button to avoid double-leave on unmount
-  const hasLeftRef = useRef(false);
-  const leaveRoomRef = useRef(leaveRoom);
-  leaveRoomRef.current = leaveRoom;
 
   useEffect(() => { setMounted(true); }, []);
-
-  // Auto-leave when page unmounts during an active game (covers Navbar link clicks, back button, etc.)
-  useEffect(() => {
-    const roomId = params.roomId;
-    return () => {
-      if (hasLeftRef.current) return;
-      const { gameState } = useGameStore.getState();
-      if (gameState?.status === "playing" && gameState?.roomId === roomId) {
-        try { leaveRoomRef.current(); } catch {}
-      }
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear stale game state from a different room (e.g., old single-player or previous match)
   useEffect(() => {
@@ -633,11 +617,9 @@ function GamePageInner() {
   // Intercept browser back button during active game
   useEffect(() => {
     if (!isActive) return;
-    // Push a state entry so we can intercept the first back press
     history.pushState({ gameActive: true }, "");
 
     const onPopState = () => {
-      // Re-push so another back press is also intercepted
       history.pushState({ gameActive: true }, "");
       setShowLeaveWarning(true);
       leaveTargetRef.current = "/lobby";
@@ -646,6 +628,27 @@ function GamePageInner() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [isActive]);
+
+  // Intercept ALL link clicks (Navbar, etc.) during active game — capture phase
+  useEffect(() => {
+    if (!isActive) return;
+    const gamePagePrefix = `/game/${params.roomId}`;
+
+    const onLinkClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest("a[href]");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") ?? "";
+      // Allow same-page anchors and links that stay on this game page
+      if (!href || href.startsWith("#") || href.startsWith(gamePagePrefix)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      leaveTargetRef.current = href;
+      setShowLeaveWarning(true);
+    };
+
+    document.addEventListener("click", onLinkClick, true);
+    return () => document.removeEventListener("click", onLinkClick, true);
+  }, [isActive, params.roomId]);
 
   // Redirect to lobby if no context for this room after grace period
   useEffect(() => {
@@ -681,7 +684,6 @@ function GamePageInner() {
     connectedPlayers[0]?.userId === user?.id;
 
   const handleLeaveConfirmed = useCallback(() => {
-    hasLeftRef.current = true;
     setShowLeaveWarning(false);
     try { leaveRoom(); } catch {}
     useGameStore.getState().reset();
@@ -689,7 +691,6 @@ function GamePageInner() {
   }, [leaveRoom, router]);
 
   const handleQuitMatch = useCallback(() => {
-    hasLeftRef.current = true;
     try { leaveRoom(); } catch {}
     useGameStore.getState().reset();
     router.push("/lobby");
