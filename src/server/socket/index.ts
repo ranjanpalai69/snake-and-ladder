@@ -19,7 +19,7 @@ export function createSocketServer(httpServer: HttpServer) {
           const allowed = [
             process.env.NEXT_PUBLIC_APP_URL,
             process.env.RENDER_EXTERNAL_URL,
-            "http://localhost:3000",
+            ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
           ].filter(Boolean) as string[];
           // Allow same-origin (no origin header) and listed origins
           if (!origin || allowed.includes(origin) || /\.onrender\.com$/.test(origin) || /\.vercel\.app$/.test(origin)) {

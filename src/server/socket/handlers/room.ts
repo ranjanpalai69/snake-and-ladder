@@ -49,7 +49,7 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
     const rank = socket.handshake.auth.rank ?? { tier: "bronze", stars: 0, totalStars: 0, points: 0 };
     const level = socket.handshake.auth.level ?? 1;
 
-    const gameRoom = new GameRoom(payload, userId, username, avatarId);
+    const gameRoom = new GameRoom(payload, userId, username, avatarId, rank, level);
     rooms.set(gameRoom.room.id, gameRoom);
     codeIndex.set(gameRoom.room.code, gameRoom.room.id);
 

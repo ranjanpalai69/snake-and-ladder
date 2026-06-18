@@ -60,7 +60,10 @@ function SocketInitializer() {
             setCurrentRoom(res.data.room);
             if (res.data.gameState) setGameState(res.data.gameState);
           } else {
+            // Room gone — clear all stale state so we don't show orphaned game/room
             setPersistedRoomId(null);
+            setCurrentRoom(null);
+            setGameState(null);
           }
         });
       }

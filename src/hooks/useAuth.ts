@@ -29,14 +29,22 @@ export function useAuth() {
   }, []);
 
   async function fetchProfile(userId: string) {
-    const supabase = getSupabaseBrowserClient();
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    setProfile(data);
-    setLoading(false);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      if (error) {
+        console.error("[auth] fetchProfile error:", error.message);
+      }
+      setProfile(data ?? null);
+    } catch (err) {
+      console.error("[auth] fetchProfile unexpected:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signOut() {

@@ -7,7 +7,6 @@ import { useGameStore } from "@/stores/gameStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useSocket } from "@/hooks/useSocket";
 import { cn } from "@/lib/utils";
-import { formatTimeAgo } from "@/lib/utils";
 
 export function ChatPanel() {
   const { chatMessages } = useGameStore();

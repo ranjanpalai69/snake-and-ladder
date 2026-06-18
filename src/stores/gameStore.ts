@@ -13,7 +13,7 @@ interface GameStore {
   /** Whether we're currently mid-reconnect attempt */
   isReconnecting: boolean;
 
-  setGameState: (state: GameState) => void;
+  setGameState: (state: GameState | null) => void;
   setPendingMove: (move: GameMove | null) => void;
   setLastMove: (move: GameMove | null) => void;
   setRolling: (rolling: boolean) => void;
@@ -34,7 +34,7 @@ export const useGameStore = create<GameStore>()(
       showWinModal: false,
       isReconnecting: false,
 
-      setGameState: (gameState) => set({ gameState }),
+      setGameState: (gameState) => set({ gameState: gameState ?? null }),
       setPendingMove: (pendingMove) => set({ pendingMove }),
       setLastMove: (lastMove) => set({ lastMove }),
       setRolling: (isRolling) => set({ isRolling }),

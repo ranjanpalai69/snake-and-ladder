@@ -9,7 +9,14 @@ export class GameRoom {
   public room: Room;
   public gameState: GameState | null = null;
 
-  constructor(payload: CreateRoomPayload, hostId: string, hostUsername: string, hostAvatarId: AvatarId) {
+  constructor(
+    payload: CreateRoomPayload,
+    hostId: string,
+    hostUsername: string,
+    hostAvatarId: AvatarId,
+    hostRank: GamePlayer["rank"] = { tier: "bronze", stars: 0, totalStars: 0, points: 0 },
+    hostLevel = 1,
+  ) {
     const hostPlayer: GamePlayer = {
       id: generateId(),
       userId: hostId,
@@ -19,8 +26,8 @@ export class GameRoom {
       position: 0,
       isReady: false,
       isConnected: true,
-      rank: { tier: "bronze", stars: 0, totalStars: 0, points: 0 },
-      level: 1,
+      rank: hostRank,
+      level: hostLevel,
     };
 
     this.room = {
