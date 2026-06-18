@@ -23,6 +23,9 @@ export interface ClientToServerEvents {
 
   // Ready reminder (sent by a ready player to ping unready ones)
   "room:ping_ready": () => void;
+
+  // Explicit state refresh — call when UI may have missed events
+  "room:get_state": (cb: (res: SocketResponse<{ room: Room; gameState: GameState | null }>) => void) => void;
 }
 
 // ── Events the SERVER sends to the CLIENT ──────────────────────────────────

@@ -22,8 +22,21 @@ function AuthInitializer() {
  */
 function SocketInitializer() {
   const { session, profile } = useAuthStore();
-  const { setCurrentRoom, setPublicRooms, setConnected, setPersistedRoomId, setCountdown } = useRoomStore();
-  const { setGameState, addChatMessage, setShowWinModal, setRolling, setReconnecting, setLastMove } = useGameStore();
+  const {
+    setCurrentRoom,
+    setPublicRooms,
+    setConnected,
+    setPersistedRoomId,
+    setCountdown,
+  } = useRoomStore();
+  const {
+    setGameState,
+    addChatMessage,
+    setShowWinModal,
+    setRolling,
+    setReconnecting,
+    setLastMove,
+  } = useGameStore();
   const boundRef = useRef(false);
 
   useEffect(() => {
@@ -45,12 +58,16 @@ function SocketInitializer() {
       profile.level
     );
 
+    // ── Connect / reconnect handlers ────────────────────────────────────────
     const onConnect = () => {
       setConnected(true);
+
+      // Refresh public room list
       socket.emit("room:list", (res) => {
         if (res.success && res.data) setPublicRooms(res.data);
       });
-      // Read fresh from store so we don't have a stale closure over persistedRoomId
+
+      // Attempt to rejoin a room from a previous session
       const { persistedRoomId } = useRoomStore.getState();
       if (persistedRoomId) {
         setReconnecting(true);
@@ -60,7 +77,7 @@ function SocketInitializer() {
             setCurrentRoom(res.data.room);
             if (res.data.gameState) setGameState(res.data.gameState);
           } else {
-            // Room gone — clear all stale state so we don't show orphaned game/room
+            // Room gone — clear all stale state
             setPersistedRoomId(null);
             setCurrentRoom(null);
             setGameState(null);
@@ -72,37 +89,99 @@ function SocketInitializer() {
     const onDisconnect = (reason: string) => {
       setConnected(false);
       if (reason === "io server disconnect" || reason === "io client disconnect") return;
-      toast("Connection lost — reconnecting...", { icon: "⚡", duration: 3000 });
+      toast("Connection lost — reconnecting…", { icon: "⚡", duration: 3000 });
     };
 
     const onReconnectAttempt = (attempt: number) => {
       if (attempt > 1) setConnected(false);
     };
 
+    // Always use the freshest token from the store — the closure here captures
+    // the token at bind time, but Supabase may have silently refreshed it since
     const onReconnect = () => {
-      socket.auth = { ...socket.auth, token: session.access_token };
+      const freshToken = useAuthStore.getState().session?.access_token;
+      if (freshToken) socket.auth = { ...socket.auth, token: freshToken };
+      setConnected(true);
       toast.success("Reconnected!", { duration: 2000 });
+    };
+
+    const onReconnectFailed = () => {
+      toast.error("Could not reconnect. Please refresh the page.", { duration: 8000 });
+      setPersistedRoomId(null);
+      setCurrentRoom(null);
+      setGameState(null);
     };
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.io.on("reconnect_attempt", onReconnectAttempt);
     socket.io.on("reconnect", onReconnect);
+    socket.io.on("reconnect_failed", onReconnectFailed);
 
+    // ── Room events ────────────────────────────────────────────────────────
     socket.on("room:updated", (room) => setCurrentRoom(room));
     socket.on("room:list:updated", (rooms) => setPublicRooms(rooms));
     socket.on("room:countdown", ({ seconds }) => setCountdown(seconds));
-    socket.on("game:started", (state) => { setCountdown(null); setGameState(state); toast.success("Game started! Good luck!"); });
+
+    socket.on("room:player:joined", ({ username }) => {
+      toast(`${username} joined the room!`, {
+        icon: "👋",
+        duration: 3000,
+        style: {
+          background: "#1e1b4b",
+          border: "1px solid rgba(99,102,241,0.4)",
+          color: "#e2e8f0",
+        },
+      });
+    });
+
+    socket.on("room:player:left", () => {
+      // room:updated fires alongside this, so store stays in sync automatically
+      toast("A player left the room.", {
+        icon: "🚪",
+        duration: 3000,
+        style: {
+          background: "#1e1b4b",
+          border: "1px solid rgba(99,102,241,0.3)",
+          color: "#94a3b8",
+        },
+      });
+    });
+
+    // ── Game events ────────────────────────────────────────────────────────
+    socket.on("game:started", (state) => {
+      setCountdown(null);
+      setGameState(state);
+      toast.success("Game started! Good luck!", { duration: 3000 });
+    });
+
     socket.on("game:state", (state) => setGameState(state));
-    socket.on("game:move", ({ newState, ...move }) => { setGameState(newState); setLastMove(move as any); setRolling(false); });
-    socket.on("game:finished", (state) => { setGameState(state); setShowWinModal(true); });
+
+    socket.on("game:move", ({ newState, ...move }) => {
+      setGameState(newState);
+      setLastMove(move as any);
+      setRolling(false);
+    });
+
+    socket.on("game:finished", (state) => {
+      setGameState(state);
+      setShowWinModal(true);
+    });
+
+    // game:turn is informational — currentPlayerIndex is already in game:move payload
+    socket.on("game:turn", () => {});
+
+    // ── Chat ───────────────────────────────────────────────────────────────
     socket.on("chat:message", (msg) => addChatMessage(msg));
+
+    // ── System ────────────────────────────────────────────────────────────
     socket.on("system:error", (msg) => toast.error(msg));
     socket.on("system:notification", ({ type, message }) => {
       if (type === "success") toast.success(message);
       else if (type === "error") toast.error(message);
       else toast(message);
     });
+
     socket.on("room:remind_ready", ({ fromUsername }) => {
       playRemindReady();
       toast(`${fromUsername} is waiting — click Ready Up!`, {
@@ -117,25 +196,30 @@ function SocketInitializer() {
       });
     });
 
+    // ── Cleanup ───────────────────────────────────────────────────────────
     return () => {
       boundRef.current = false;
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.io.off("reconnect_attempt", onReconnectAttempt);
       socket.io.off("reconnect", onReconnect);
+      socket.io.off("reconnect_failed", onReconnectFailed);
       socket.off("room:updated");
       socket.off("room:list:updated");
       socket.off("room:countdown");
+      socket.off("room:player:joined");
+      socket.off("room:player:left");
       socket.off("game:started");
       socket.off("game:state");
       socket.off("game:move");
       socket.off("game:finished");
+      socket.off("game:turn");
       socket.off("chat:message");
       socket.off("system:error");
       socket.off("system:notification");
       socket.off("room:remind_ready");
     };
-  }, [session?.access_token, profile?.id]);
+  }, [session?.access_token, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }

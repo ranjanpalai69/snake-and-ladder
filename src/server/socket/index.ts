@@ -16,20 +16,32 @@ export function createSocketServer(httpServer: HttpServer) {
     {
       cors: {
         origin: (origin, cb) => {
-          const allowed = [
-            process.env.NEXT_PUBLIC_APP_URL,
-            process.env.RENDER_EXTERNAL_URL,
-            ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
-          ].filter(Boolean) as string[];
-          // Allow same-origin (no origin header) and listed origins
-          if (!origin || allowed.includes(origin) || /\.onrender\.com$/.test(origin) || /\.vercel\.app$/.test(origin)) {
+          // Same-origin requests have no Origin header — always allow
+          if (!origin) return cb(null, true);
+
+          const allowed = new Set(
+            [
+              process.env.NEXT_PUBLIC_APP_URL,
+              process.env.RENDER_EXTERNAL_URL,
+            ].filter(Boolean) as string[]
+          );
+
+          if (
+            allowed.has(origin) ||
+            /\.onrender\.com$/.test(origin) ||
+            /\.vercel\.app$/.test(origin) ||
+            /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+            /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)
+          ) {
             cb(null, true);
           } else {
+            console.warn(`[socket:cors] Blocked origin: ${origin}`);
             cb(new Error("CORS"));
           }
         },
         methods: ["GET", "POST"],
         credentials: true,
+        allowedHeaders: ["Content-Type", "Authorization"],
       },
       // Socket.io transport & perf settings
       transports: ["websocket", "polling"],

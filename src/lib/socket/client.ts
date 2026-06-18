@@ -7,18 +7,23 @@ let socket: AppSocket | null = null;
 
 export function getSocket(): AppSocket {
   if (!socket) {
-    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL ?? "", {
+    // Empty string → Socket.IO uses window.location.origin (same-origin, correct for Render)
+    // Explicit URL → used in development or custom deployments
+    const url = process.env.NEXT_PUBLIC_SOCKET_URL ?? "";
+    socket = io(url, {
       autoConnect: false,
       withCredentials: true,
-      // Transport order: WebSocket first (fastest), polling as fallback
+      // WebSocket first for lowest latency; polling as reliable fallback
       transports: ["websocket", "polling"],
-      // Automatic reconnection with exponential backoff
+      // Exponential back-off reconnect — unlimited attempts
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 8000,
-      randomizationFactor: 0.3,
-      timeout: 10000,
+      reconnectionDelayMax: 10000,
+      randomizationFactor: 0.4,
+      timeout: 15000,
+      // Force a new connection (don't multiplex with unrelated sockets on the same origin)
+      forceNew: false,
     });
   }
   return socket;

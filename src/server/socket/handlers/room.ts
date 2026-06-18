@@ -61,13 +61,40 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
   });
 
   socket.on("room:join", async (payload: JoinRoomPayload, cb) => {
+    // Leave any previous room before joining a new one
+    const prevRoomId = socket.data.roomId;
+    if (prevRoomId && prevRoomId !== undefined) {
+      const prevRoom = rooms.get(prevRoomId);
+      if (prevRoom) {
+        prevRoom.removePlayer(userId);
+        socket.to(prevRoomId).emit("room:player:left", userId);
+        if (prevRoom.isEmpty) {
+          rooms.delete(prevRoomId);
+          codeIndex.delete(prevRoom.room.code);
+        } else {
+          io.to(prevRoomId).emit("room:updated", prevRoom.room);
+        }
+      }
+      socket.leave(prevRoomId);
+      socket.data.roomId = undefined;
+    }
+
     const roomId = codeIndex.get(payload.code.toUpperCase());
     if (!roomId) return cb({ success: false, error: "Room not found" });
 
     const gameRoom = rooms.get(roomId);
     if (!gameRoom) return cb({ success: false, error: "Room not found" });
     if (gameRoom.isFull) return cb({ success: false, error: "Room is full" });
-    if (gameRoom.room.status !== "waiting") return cb({ success: false, error: gameRoom.room.status === "starting" ? "Game is starting..." : "Game already started" });
+    if (gameRoom.room.status !== "waiting") {
+      return cb({ success: false, error: gameRoom.room.status === "starting" ? "Game is starting..." : "Game already started" });
+    }
+    // Prevent duplicate join
+    if (gameRoom.room.players.find((p) => p.userId === userId)) {
+      // Already in this room — re-join socket room and return current state
+      socket.data.roomId = roomId;
+      socket.join(roomId);
+      return cb({ success: true, data: gameRoom.room });
+    }
 
     const avatarId = (socket.handshake.auth.avatarId ?? "avatar_01") as AvatarId;
     const rank = socket.handshake.auth.rank ?? { tier: "bronze", stars: 0, totalStars: 0, points: 0 };
@@ -105,6 +132,15 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
     socket.leave(roomId);
     socket.data.roomId = undefined;
     io.emit("room:list:updated", getRoomSummaries());
+  });
+
+  // Explicit state refresh — called by clients that may have missed events
+  socket.on("room:get_state", (cb) => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return cb({ success: false, error: "Not in a room" });
+    const gameRoom = rooms.get(roomId);
+    if (!gameRoom) return cb({ success: false, error: "Room not found" });
+    cb({ success: true, data: { room: gameRoom.room, gameState: gameRoom.gameState } });
   });
 
   socket.on("room:list", (cb) => {
