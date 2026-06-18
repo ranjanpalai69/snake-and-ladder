@@ -138,6 +138,21 @@ export function createSocketServer(httpServer: HttpServer) {
     registerGameHandlers(io, socket);
     registerChatHandlers(io, socket);
 
+    // ── Deliver pending rejoin invite on connect (only host-triggered ones) ─
+    const pendingInvite = pendingRejoinInvites.get(userId);
+    if (pendingInvite && pendingInvite.expiresAt > Date.now()) {
+      const invRoom = rooms.get(pendingInvite.roomId);
+      if (invRoom && invRoom.gameState?.status === "playing") {
+        socket.emit("game:rejoin_invite", {
+          roomId: pendingInvite.roomId,
+          roomName: pendingInvite.roomName,
+          invitedBy: pendingInvite.invitedBy,
+        });
+      } else {
+        pendingRejoinInvites.delete(userId);
+      }
+    }
+
     // ── Reconnect handler ─────────────────────────────────────────────────
     socket.on("room:reconnect", ({ roomId }, cb) => {
       const gameRoom = rooms.get(roomId);
@@ -198,17 +213,6 @@ export function createSocketServer(httpServer: HttpServer) {
         io.to(roomId).emit("room:player:left", userId);
         if (gameRoom.isEmpty) rooms.delete(roomId);
       } else {
-        // Store pending rejoin invite (auto-invite when they reconnect)
-        if (gameRoom.gameState?.status === "playing") {
-          const hostPlayer = gameRoom.room.players.find((p) => p.userId === gameRoom.room.hostId);
-          pendingRejoinInvites.set(userId, {
-            roomId,
-            roomName: gameRoom.room.name,
-            invitedBy: hostPlayer?.username ?? "Host",
-            expiresAt: Date.now() + 90_000,
-          });
-        }
-
         // Give 90s to reconnect during active game before removing
         setTimeout(() => {
           const room = rooms.get(roomId);

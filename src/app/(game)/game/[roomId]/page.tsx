@@ -570,8 +570,24 @@ function GamePageInner() {
   const [mounted, setMounted] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const leaveTargetRef = useRef<string | null>(null);
+  // Tracks whether the user has already left via modal/button to avoid double-leave on unmount
+  const hasLeftRef = useRef(false);
+  const leaveRoomRef = useRef(leaveRoom);
+  leaveRoomRef.current = leaveRoom;
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Auto-leave when page unmounts during an active game (covers Navbar link clicks, back button, etc.)
+  useEffect(() => {
+    const roomId = params.roomId;
+    return () => {
+      if (hasLeftRef.current) return;
+      const { gameState } = useGameStore.getState();
+      if (gameState?.status === "playing" && gameState?.roomId === roomId) {
+        try { leaveRoomRef.current(); } catch {}
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear stale game state from a different room (e.g., old single-player or previous match)
   useEffect(() => {
@@ -643,6 +659,7 @@ function GamePageInner() {
     connectedPlayers[0]?.userId === user?.id;
 
   const handleLeaveConfirmed = useCallback(() => {
+    hasLeftRef.current = true;
     setShowLeaveWarning(false);
     try { leaveRoom(); } catch {}
     useGameStore.getState().reset();
@@ -650,6 +667,7 @@ function GamePageInner() {
   }, [leaveRoom, router]);
 
   const handleQuitMatch = useCallback(() => {
+    hasLeftRef.current = true;
     try { leaveRoom(); } catch {}
     useGameStore.getState().reset();
     router.push("/lobby");

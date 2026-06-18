@@ -11,9 +11,9 @@
   "lang": "en-US",
   "dir": "ltr",
   "icons": [
-    { "src": "/assets/icons/snake-ladder-favicon.png", "sizes": "any", "type": "image/png", "purpose": "any" },
-    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/assets/icons/snake-ladder-favicon.png", "sizes": "any", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/assets/icons/snake-ladder-favicon.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/assets/icons/snake-ladder-favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "categories": ["games", "entertainment", "board-games"],
   "keywords": ["snake and ladder", "snakes and ladders", "board game", "multiplayer", "3D game", "offline game"],
