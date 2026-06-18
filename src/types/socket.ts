@@ -10,6 +10,8 @@ export interface ClientToServerEvents {
   "room:leave": () => void;
   "room:list": (cb: (res: SocketResponse<RoomSummary[]>) => void) => void;
   "room:ready": () => void;
+  /** Host explicitly starts the game (replaces auto-start when all ready) */
+  "room:start": (cb: (res: SocketResponse<void>) => void) => void;
   "room:choose_color": (payload: { color: import("./game").PlayerColor }, cb: (res: SocketResponse<Room>) => void) => void;
   "room:get_state": (cb: (res: SocketResponse<{ room: Room; gameState: GameState | null }>) => void) => void;
 

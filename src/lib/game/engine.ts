@@ -168,8 +168,8 @@ export function applyMove(state: GameState, playerId: string, diceValue: number)
 
   const winner = isWinner(newPosition) ? updatedPlayers[playerIndex] : null;
 
-  // Keep same player if: rolled 6 (extra turn) OR blocked (couldn't move) — unless they won
-  const keepTurn = !winner && (rolledSix || wasBlocked);
+  // Keep same player only when rolled 6 AND didn't overshoot (blocked = turn passes)
+  const keepTurn = !winner && rolledSix && !wasBlocked;
 
   const newState: GameState = {
     ...state,

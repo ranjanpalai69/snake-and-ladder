@@ -173,7 +173,7 @@ function SocketInitializer() {
         if (m.rolledSix && !newState.winner) {
           toast("Rolled 6 — extra turn!", { icon: "🎲", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(99,102,241,0.4)" } });
         } else if (m.wasBlocked) {
-          toast("Overshot 100 — stay put!", { icon: "⛔", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(239,68,68,0.4)" } });
+          toast("Overshot 100 — turn passes!", { icon: "⛔", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(239,68,68,0.4)" } });
         }
       }, 1000);
     });

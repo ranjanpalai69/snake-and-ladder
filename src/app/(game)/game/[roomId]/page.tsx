@@ -134,7 +134,7 @@ const ALL_COLORS = Object.keys(PLAYER_COLORS) as PlayerColor[];
 function WaitingRoom() {
   const { currentRoom, countdown } = useRoomStore();
   const { user } = useAuthStore();
-  const { setReady, leaveRoom, chooseColor, pingReady } = useSocket();
+  const { setReady, leaveRoom, chooseColor, pingReady, startGame } = useSocket();
   const router = useRouter();
 
   const [showRemind, setShowRemind] = useState(false);
@@ -343,7 +343,7 @@ function WaitingRoom() {
           ))}
         </div>
 
-        {/* Ready button */}
+        {/* Ready button — all players mark readiness */}
         <button
           onClick={setReady}
           disabled={!!myPlayer?.isReady}
@@ -357,8 +357,29 @@ function WaitingRoom() {
           }}
         >
           <Check className="w-4 h-4" />
-          {myPlayer?.isReady ? "Waiting for others…" : "Ready Up"}
+          {myPlayer?.isReady ? "Ready!" : "Ready Up"}
         </button>
+
+        {/* Host: Start Game button / Non-host: waiting message */}
+        {user?.id === currentRoom.hostId ? (
+          <button
+            onClick={() => startGame()}
+            disabled={needMore}
+            className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-35"
+            style={{
+              background: needMore ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #16a34a, #15803d)",
+              border: needMore ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(34,197,94,0.3)",
+              color: needMore ? "#64748b" : "white",
+            }}
+          >
+            <Dices className="w-4 h-4" />
+            {needMore ? `Need ${minPlayers - currentRoom.players.length} more player(s)` : "Start Game"}
+          </button>
+        ) : (
+          <p className="text-xs text-slate-500 text-center py-1">
+            Waiting for the host to start the game…
+          </p>
+        )}
 
         {/* Remind button */}
         {showRemind && (
@@ -377,12 +398,6 @@ function WaitingRoom() {
             <Bell className="w-4 h-4" />
             {remindCooldown > 0 ? `Reminder sent (${remindCooldown}s)` : "Remind others to get ready"}
           </motion.button>
-        )}
-
-        {needMore && (
-          <p className="text-xs text-slate-500 text-center">
-            Need at least {minPlayers} players to start
-          </p>
         )}
       </motion.div>
     </div>

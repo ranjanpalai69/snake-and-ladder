@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Hash, Gamepad2, Users, Trophy, Globe, Swords, ArrowRight } from "lucide-react";
+import { Plus, Hash, Gamepad2, Users, Trophy, Globe, Swords, ArrowRight, MonitorSmartphone } from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { RoomCard } from "@/components/lobby/RoomCard";
@@ -26,7 +26,7 @@ function ModeSelection({ onSelect }: { onSelect: (mode: LobbyView) => void }) {
         <h1 className="font-display text-4xl font-black text-white">How do you want to play?</h1>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Multiplayer */}
         <motion.button
           initial={{ opacity: 0, x: -40 }}
@@ -73,11 +73,53 @@ function ModeSelection({ onSelect }: { onSelect: (mode: LobbyView) => void }) {
           </div>
         </motion.button>
 
+        {/* Local Multiplayer */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          whileHover={{ scale: 1.02, y: -4 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <Link
+            href="/local"
+            className="group relative overflow-hidden p-8 rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-900/30 to-teal-900/20 text-left hover:border-emerald-400/40 transition-all duration-300 cursor-pointer block h-full"
+          >
+            <motion.div
+              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+              style={{ background: "radial-gradient(ellipse at 50% 50%, rgba(16,185,129,0.12) 0%, transparent 70%)" }}
+            />
+            <div className="relative z-10">
+              <motion.div
+                animate={{ rotate: [0, -5, 5, 0] }}
+                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                className="w-16 h-16 rounded-2xl bg-emerald-600/20 border border-emerald-500/25 flex items-center justify-center mb-5"
+              >
+                <MonitorSmartphone className="w-8 h-8 text-emerald-300" />
+              </motion.div>
+              <h2 className="font-display text-2xl font-bold text-white mb-2">Local Play</h2>
+              <p className="text-slate-400 text-sm leading-relaxed mb-5">
+                2–6 players on one device. Choose names, pick colors, and pass the phone around!
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {["2-6 Players", "One Device", "No Account", "Pass & Play"].map((tag) => (
+                  <span key={tag} className="px-2.5 py-1 rounded-full bg-emerald-900/30 text-emerald-300 text-xs font-medium border border-emerald-500/15">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mt-5 text-emerald-400 text-sm font-semibold">
+                Play Now <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          </Link>
+        </motion.div>
+
         {/* Single Player */}
         <motion.div
           initial={{ opacity: 0, x: 40 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
         >
           <motion.div
             whileHover={{ scale: 1.02, y: -4 }}

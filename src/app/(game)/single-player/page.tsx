@@ -158,7 +158,7 @@ function SinglePlayerPageInner() {
         setDiceReveal(null);
         if (newState.winner) setShowWinModal(true);
         else if (move.rolledSix) toast("Rolled 6 — roll again!", { icon: "🎲", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(99,102,241,0.4)" } });
-        else if (move.wasBlocked) toast("Overshot! Stay and try again.", { icon: "⛔", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(239,68,68,0.4)" } });
+        else if (move.wasBlocked) toast("Overshot 100 — turn passes!", { icon: "⛔", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(239,68,68,0.4)" } });
       }, 1000);
     }, 700);
   }, [isRolling, setGameState, setRolling, setShowWinModal, setLastMove, setDiceReveal]);

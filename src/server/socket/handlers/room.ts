@@ -165,24 +165,35 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
     const gameRoom = rooms.get(roomId);
     if (!gameRoom) return;
 
-    const allReady = gameRoom.setPlayerReady(userId);
+    // Toggle ready state — host decides when to actually start
+    gameRoom.setPlayerReady(userId);
     io.to(roomId).emit("room:updated", gameRoom.room);
+  });
 
-    if (allReady) {
-      // Lock room immediately so no new players can sneak in during countdown
-      gameRoom.room.status = "starting";
-      io.to(roomId).emit("room:updated", gameRoom.room);
-      io.emit("room:list:updated", getRoomSummaries());
+  socket.on("room:start", (cb) => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return cb({ success: false, error: "Not in a room" });
 
-      // Broadcast countdown: 3 → 2 → 1, then start
-      io.to(roomId).emit("room:countdown", { seconds: 3 });
-      setTimeout(() => io.to(roomId).emit("room:countdown", { seconds: 2 }), 1000);
-      setTimeout(() => io.to(roomId).emit("room:countdown", { seconds: 1 }), 2000);
-      setTimeout(() => {
-        const gameState = gameRoom.startGame();
-        io.to(roomId).emit("game:started", gameState);
-      }, 3000);
-    }
+    const gameRoom = rooms.get(roomId);
+    if (!gameRoom) return cb({ success: false, error: "Room not found" });
+    if (gameRoom.room.hostId !== userId) return cb({ success: false, error: "Only the host can start the game" });
+    if (gameRoom.room.players.length < 2) return cb({ success: false, error: "Need at least 2 players to start" });
+    if (gameRoom.room.status !== "waiting") return cb({ success: false, error: "Game already starting or started" });
+
+    // Lock room so no new players can join during countdown
+    gameRoom.room.status = "starting";
+    io.to(roomId).emit("room:updated", gameRoom.room);
+    io.emit("room:list:updated", getRoomSummaries());
+
+    io.to(roomId).emit("room:countdown", { seconds: 3 });
+    setTimeout(() => io.to(roomId).emit("room:countdown", { seconds: 2 }), 1000);
+    setTimeout(() => io.to(roomId).emit("room:countdown", { seconds: 1 }), 2000);
+    setTimeout(() => {
+      const gameState = gameRoom.startGame();
+      io.to(roomId).emit("game:started", gameState);
+    }, 3000);
+
+    cb({ success: true });
   });
 
   socket.on("room:ping_ready", async () => {

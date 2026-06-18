@@ -66,6 +66,14 @@ export function useSocket() {
     getSocket().emit("room:ping_ready");
   }, []);
 
+  const startGame = useCallback((): Promise<boolean> =>
+    new Promise((resolve) => {
+      getSocket().emit("room:start", (res) => {
+        if (!res.success) toast.error(res.error ?? "Failed to start");
+        resolve(res.success);
+      });
+    }), []);
+
   const chooseColor = useCallback(
     (color: PlayerColor): Promise<boolean> =>
       new Promise((resolve) => {
@@ -78,5 +86,5 @@ export function useSocket() {
     [setCurrentRoom]
   );
 
-  return { rollDice, sendChat, createRoom, joinRoom, leaveRoom, setReady, pingReady, chooseColor };
+  return { rollDice, sendChat, createRoom, joinRoom, leaveRoom, setReady, startGame, pingReady, chooseColor };
 }
