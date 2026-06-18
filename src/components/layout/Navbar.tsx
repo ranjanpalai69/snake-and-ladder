@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Star,
+  MonitorSmartphone,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +32,7 @@ import {
 
 const NAV_LINKS = [
   { href: "/lobby", label: "Lobby", icon: LayoutGrid },
+  { href: "/local", label: "Local Play", icon: MonitorSmartphone },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
 ];
 

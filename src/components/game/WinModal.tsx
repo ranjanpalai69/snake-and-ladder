@@ -17,13 +17,14 @@ export function WinModal() {
   const router = useRouter();
 
   const winner = gameState?.winner;
-  const isWinner = winner?.userId === user?.id;
+  const isLocalGame = gameState?.roomId === "local";
+  const isWinner = !isLocalGame && winner?.userId === user?.id;
 
   function handlePlayAgain() {
     try { leaveRoom(); } catch {}
     reset();
     setShowWinModal(false);
-    router.push("/lobby");
+    router.push(isLocalGame ? "/local" : "/lobby");
   }
 
   if (!showWinModal || !winner) return null;
@@ -89,7 +90,7 @@ export function WinModal() {
               </h2>
               <p className="text-slate-400 text-sm">
                 {isWinner
-                  ? "Outstanding performance! You reached position 100!"
+                  ? "Outstanding! You reached position 100!"
                   : `${winner.username} reached position 100 first.`}
               </p>
             </div>
@@ -139,10 +140,10 @@ export function WinModal() {
                 onClick={handlePlayAgain}
                 className="flex-1 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
               >
-                <RotateCcw className="w-4 h-4" /> Play Again
+                <RotateCcw className="w-4 h-4" /> {isLocalGame ? "New Game" : "Play Again"}
               </button>
               <button
-                onClick={() => { leaveRoom(); reset(); router.push("/"); }}
+                onClick={() => { try { leaveRoom(); } catch {} reset(); setShowWinModal(false); router.push("/"); }}
                 className="flex-1 py-3 rounded-xl bg-white/8 text-slate-300 font-semibold flex items-center justify-center gap-2 hover:bg-white/12 transition-all"
               >
                 <ArrowRight className="w-4 h-4" /> Home

@@ -25,7 +25,7 @@ const FEATURES = [
   { icon: Trophy, title: "Ranked Matches", desc: "Climb from Bronze to Legend with our star-based ranking system", color: "#ffd700" },
   { icon: ShieldCheck, title: "Secure Auth", desc: "Sign in with email or OAuth via Supabase", color: "#22c55e" },
   { icon: Activity, title: "Match History", desc: "Track every game, opponent, and rank change", color: "#06b6d4" },
-  { icon: Gamepad2, title: "Single Player", desc: "Practice alone against the clock", color: "#ec4899" },
+  { icon: Gamepad2, title: "Local & Solo Play", desc: "Pass-and-play for 2–6 on one device, or solo practice with a bot", color: "#ec4899" },
 ];
 
 const RANKS = ["bronze", "silver", "gold", "platinum", "diamond", "legend"] as const;
@@ -81,7 +81,7 @@ export default function HomePage() {
             dodge snakes, and outwit opponents from around the world.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
             {isLoading ? null : user ? (
               <>
                 <Link
@@ -89,6 +89,12 @@ export default function HomePage() {
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold text-base shadow-xl shadow-violet-900/40 hover:opacity-90 transition-opacity"
                 >
                   <Users className="w-5 h-5" /> Multiplayer Lobby
+                </Link>
+                <Link
+                  href="/local"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-700 text-white font-semibold text-base hover:opacity-90 transition-opacity shadow-lg shadow-emerald-900/40"
+                >
+                  <Gamepad2 className="w-5 h-5" /> Local Play
                 </Link>
                 <Link
                   href="/single-player"

@@ -66,7 +66,7 @@ function SetupScreen({ onStart }: { onStart: (players: LocalPlayerSetup[]) => vo
   const canStart = activePlayers.every((p) => p.name.trim().length > 0);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center px-4 pt-24 pb-8">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
@@ -293,7 +293,7 @@ function LocalGame({
         setDiceReveal(null);
         if (newState.winner) {
           setShowWinModal(true);
-        } else if (move.rolledSix && !move.wasBlocked) {
+        } else if (move.rolledSix && !move.wasBlocked && !newState.winner) {
           toast(`${player.username} rolled 6 — roll again!`, {
             icon: "🎲", duration: 2000,
             style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(99,102,241,0.4)" },
@@ -388,7 +388,7 @@ function LocalGame({
           {!isFinished && currentPlayer && (
             <button
               onClick={handleRoll}
-              disabled={isRolling || animBusyRef.current}
+              disabled={isRolling}
               className="w-full py-3 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-40"
               style={{
                 background: `linear-gradient(135deg, ${PLAYER_COLORS[currentPlayer.color as PlayerColor]}cc, ${PLAYER_COLORS[currentPlayer.color as PlayerColor]}88)`,

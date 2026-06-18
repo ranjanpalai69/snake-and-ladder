@@ -157,7 +157,7 @@ function SinglePlayerPageInner() {
         setLastMove(move);
         setDiceReveal(null);
         if (newState.winner) setShowWinModal(true);
-        else if (move.rolledSix) toast("Rolled 6 — roll again!", { icon: "🎲", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(99,102,241,0.4)" } });
+        else if (move.rolledSix && !move.wasBlocked) toast("Rolled 6 — roll again!", { icon: "🎲", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(99,102,241,0.4)" } });
         else if (move.wasBlocked) toast("Overshot 100 — turn passes!", { icon: "⛔", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(239,68,68,0.4)" } });
       }, 1000);
     }, 700);
@@ -327,7 +327,7 @@ function SinglePlayerPageInner() {
                 <span className="text-slate-400 truncate">
                   {move.wasBlocked ? `${move.from} (blocked)` : `${move.from}→${move.to}`}
                 </span>
-                {move.rolledSix && <span className="text-yellow-400 shrink-0">×2</span>}
+                {move.rolledSix && !move.wasBlocked && <span className="text-yellow-400 shrink-0">×2</span>}
                 {move.hadSnake && <span className="text-red-400 shrink-0">🐍</span>}
                 {move.hadLadder && <span className="text-green-400 shrink-0">🪜</span>}
               </div>
