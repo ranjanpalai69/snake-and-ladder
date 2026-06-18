@@ -34,6 +34,10 @@ export interface GameMove {
   diceValue: number;
   hadSnake: boolean;
   hadLadder: boolean;
+  /** Player rolled 6 — they get another turn (unless they won) */
+  rolledSix: boolean;
+  /** Player couldn't move because dice would overshoot 100 */
+  wasBlocked: boolean;
   timestamp: number;
 }
 

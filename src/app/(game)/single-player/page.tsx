@@ -14,6 +14,7 @@ import { createInitialGameState, applyMove, rollDice } from "@/lib/game/engine";
 import type { GamePlayer, AvatarId } from "@/types/game";
 import { generateId } from "@/lib/utils";
 import { playDiceRoll } from "@/lib/sounds";
+import toast from "react-hot-toast";
 
 const BOT_ID = "bot-player";
 
@@ -156,6 +157,8 @@ function SinglePlayerPageInner() {
         setLastMove(move);
         setDiceReveal(null);
         if (newState.winner) setShowWinModal(true);
+        else if (move.rolledSix) toast("Rolled 6 — roll again!", { icon: "🎲", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(99,102,241,0.4)" } });
+        else if (move.wasBlocked) toast("Overshot! Stay and try again.", { icon: "⛔", duration: 2000, style: { background: "#1e1b4b", color: "#e2e8f0", border: "1px solid rgba(239,68,68,0.4)" } });
       }, 1000);
     }, 700);
   }, [isRolling, setGameState, setRolling, setShowWinModal, setLastMove, setDiceReveal]);
@@ -205,7 +208,8 @@ function SinglePlayerPageInner() {
     }, 1200);
 
     return () => { if (botTimerRef.current) clearTimeout(botTimerRef.current); };
-  }, [gameState?.currentPlayerIndex, gameState?.status, withBot, isRolling]);
+  // Also re-trigger when moveHistory length changes so bot fires again on extra turn (rolled 6 / blocked)
+  }, [gameState?.currentPlayerIndex, gameState?.moveHistory?.length, gameState?.status, withBot, isRolling]);
 
   function handleRestart() {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
@@ -244,11 +248,112 @@ function SinglePlayerPageInner() {
     );
   }
 
+  const SidebarContent = () => (
+    <>
+      {/* Mode + turn indicator */}
+      <div className="glass rounded-xl p-3">
+        <div className="flex items-center gap-2 mb-1">
+          {withBot ? <Bot className="w-4 h-4 text-violet-400" /> : <User className="w-4 h-4 text-blue-400" />}
+          <h2 className="font-display text-sm font-bold text-white">
+            {withBot ? "vs Bot" : "Solo Practice"}
+          </h2>
+        </div>
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={currentPlayer?.id ?? "solo"}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`text-xs font-medium ${isHumanTurn ? "text-blue-400" : "text-violet-400"}`}
+          >
+            {withBot
+              ? isHumanTurn
+                ? "Your turn — roll the dice!"
+                : "Bot is thinking..."
+              : "Roll the dice and reach 100!"}
+          </motion.p>
+        </AnimatePresence>
+      </div>
+
+      {/* Player cards */}
+      {gameState && (
+        <div className="space-y-1.5">
+          {gameState.players.map((p) => {
+            const isBot = p.userId === BOT_ID;
+            const isCurrent = gameState.players[gameState.currentPlayerIndex]?.id === p.id;
+            const colorHex = p.color === "blue" ? "#3B82F6" : "#EF4444";
+            return (
+              <motion.div
+                key={p.id}
+                animate={{ scale: isCurrent ? 1.02 : 1, opacity: isCurrent ? 1 : 0.65 }}
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
+                  isCurrent ? "border-violet-500/50 bg-violet-900/20" : "border-white/8 bg-white/5"
+                }`}
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                  style={{ background: colorHex }}
+                >
+                  {isBot ? "🤖" : p.username.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-white truncate">{isBot ? "Bot" : p.username}</p>
+                  <p className="text-[10px] text-slate-500">Square {p.position}</p>
+                </div>
+                {isCurrent && <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse shrink-0" />}
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Roll controls */}
+      <GameControls onRollOverride={handleRoll} isMyTurnOverride={isHumanTurn && !animBusyRef.current} />
+
+      {/* Move history */}
+      {gameState && (
+        <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1.5">Move History</p>
+          {[...gameState.moveHistory].reverse().slice(0, 30).map((move, i) => {
+            const player = gameState.players.find(p => p.id === move.playerId);
+            const isBot = player?.userId === BOT_ID;
+            return (
+              <div key={i} className="flex items-center gap-1.5 text-xs p-1.5 rounded-lg bg-white/5">
+                {withBot && (
+                  <span className={`text-[10px] font-bold w-8 shrink-0 ${isBot ? "text-violet-400" : "text-blue-400"}`}>
+                    {isBot ? "Bot" : "You"}
+                  </span>
+                )}
+                <span className="font-mono text-violet-300 shrink-0">{move.diceValue}</span>
+                <span className="text-slate-400 truncate">
+                  {move.wasBlocked ? `${move.from} (blocked)` : `${move.from}→${move.to}`}
+                </span>
+                {move.rolledSix && <span className="text-yellow-400 shrink-0">×2</span>}
+                {move.hadSnake && <span className="text-red-400 shrink-0">🐍</span>}
+                {move.hadLadder && <span className="text-green-400 shrink-0">🪜</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        onClick={tryLeave}
+        className="flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors py-2 shrink-0 mt-auto"
+      >
+        <RotateCcw className="w-3.5 h-3.5" /> Back to menu
+      </button>
+    </>
+  );
+
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Navbar />
-      <div className="flex flex-1 pt-16 overflow-hidden">
-        <div className="flex-1 relative">
+
+      {/* Game area */}
+      <div className="flex flex-1 overflow-hidden pt-16 flex-col lg:flex-row">
+
+        {/* 3D board — fills all space not taken by sidebar */}
+        <div className="flex-1 relative min-h-0">
           <DynamicGameScene
             singlePlayer
             onRollOverride={handleRoll}
@@ -276,97 +381,25 @@ function SinglePlayerPageInner() {
           </AnimatePresence>
         </div>
 
+        {/* Desktop sidebar */}
         <motion.div
-          initial={{ x: 280 }}
+          initial={{ x: 288 }}
           animate={{ x: 0 }}
-          className="w-72 flex flex-col gap-4 p-4 bg-black/40 border-l border-white/8 overflow-y-auto"
+          transition={{ type: "spring", stiffness: 260, damping: 28 }}
+          className="hidden lg:flex w-72 flex-col gap-3 p-4 bg-black/40 border-l border-white/8 overflow-y-auto shrink-0"
         >
-          {/* Mode indicator */}
-          <div className="glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              {withBot ? <Bot className="w-4 h-4 text-violet-400" /> : <User className="w-4 h-4 text-blue-400" />}
-              <h2 className="font-display text-sm font-bold text-white">
-                {withBot ? "vs Bot" : "Solo Practice"}
-              </h2>
-            </div>
-            {withBot && gameState && (
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={currentPlayer?.id}
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`text-xs font-medium ${isHumanTurn ? "text-blue-400" : "text-violet-400"}`}
-                >
-                  {isHumanTurn ? "Your turn — roll the dice!" : "Bot is thinking..."}
-                </motion.p>
-              </AnimatePresence>
-            )}
-            {!withBot && <p className="text-xs text-slate-400">Roll the dice and reach square 100!</p>}
-          </div>
-
-          {/* Player panels */}
-          {withBot && gameState && (
-            <div className="space-y-2">
-              {gameState.players.map((p) => {
-                const isBot = p.userId === BOT_ID;
-                const isCurrent = gameState.players[gameState.currentPlayerIndex]?.id === p.id;
-                return (
-                  <motion.div
-                    key={p.id}
-                    animate={{ scale: isCurrent ? 1.02 : 1, opacity: isCurrent ? 1 : 0.7 }}
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                      isCurrent ? "border-violet-500/50 bg-violet-900/20" : "border-white/8 bg-white/5"
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold`}
-                      style={{ background: p.color === "blue" ? "#3B82F6" : "#EF4444" }}>
-                      {isBot ? "🤖" : p.username.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-medium text-white">{isBot ? "Bot" : p.username}</p>
-                      <p className="text-[10px] text-slate-500">Cell {p.position}</p>
-                    </div>
-                    {isCurrent && <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />}
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Roll controls */}
-          <GameControls onRollOverride={handleRoll} isMyTurnOverride={isHumanTurn && !animBusyRef.current} />
-
-          {/* Move history */}
-          {gameState && (
-            <div className="flex-1 overflow-y-auto space-y-1.5 min-h-0">
-              <p className="text-xs text-slate-500 uppercase tracking-wider">Move History</p>
-              {[...gameState.moveHistory].reverse().slice(0, 20).map((move, i) => {
-                const player = gameState.players.find(p => p.id === move.playerId);
-                const isBot = player?.userId === BOT_ID;
-                return (
-                  <div key={i} className="flex items-center gap-2 text-xs p-2 rounded-lg bg-white/5">
-                    {withBot && (
-                      <span className={`text-[10px] font-bold w-10 shrink-0 ${isBot ? "text-violet-400" : "text-blue-400"}`}>
-                        {isBot ? "Bot" : "You"}
-                      </span>
-                    )}
-                    <span className="font-mono text-violet-300 w-3">{move.diceValue}</span>
-                    <span className="text-slate-400">{move.from}→{move.to}</span>
-                    {move.hadSnake && <span className="text-red-400 ml-auto">🐍</span>}
-                    {move.hadLadder && <span className="text-green-400 ml-auto">🪜</span>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <button
-            onClick={tryLeave}
-            className="flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors py-2 shrink-0"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Back to menu
-          </button>
+          <SidebarContent />
         </motion.div>
+
+        {/* Mobile bottom panel */}
+        <div
+          className="lg:hidden flex flex-col shrink-0 bg-black/60 backdrop-blur-md border-t border-white/8 overflow-y-auto"
+          style={{ maxHeight: "220px" }}
+        >
+          <div className="p-3 space-y-2">
+            <SidebarContent />
+          </div>
+        </div>
       </div>
 
       <WinModal />

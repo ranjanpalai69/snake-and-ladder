@@ -29,15 +29,37 @@ function cellToWorld(cell: number): THREE.Vector3 {
 }
 
 function buildCellPath(from: number, diceValue: number): number[] {
-  const path: number[] = [];
   const raw = from + diceValue;
-  if (raw > 100) {
-    for (let i = from + 1; i <= 100; i++) path.push(i);
-    for (let i = 99; i >= 200 - raw; i--) path.push(i);
-  } else {
-    for (let i = from + 1; i <= raw; i++) path.push(i);
-  }
+  if (raw > 100) return []; // stay — exact entry required
+  const path: number[] = [];
+  for (let i = from + 1; i <= raw; i++) path.push(i);
   return path;
+}
+
+// ── Dice face rotations ───────────────────────────────────────────────────────
+// BoxGeometry material order: [+X, -X, +Y, -Y, +Z, -Z]
+// makeDiceCanvas maps index i → value i+1, so:
+//   material 0 (+X face) = value 1
+//   material 1 (-X face) = value 2
+//   material 2 (+Y face) = value 3
+//   material 3 (-Y face) = value 4
+//   material 4 (+Z face) = value 5
+//   material 5 (-Z face) = value 6
+//
+// Target Euler(x, y, z) that places each value's face pointing UP (+Y):
+const DICE_FACE_ROTATIONS: Record<number, [number, number, number]> = {
+  1: [0,            0,  Math.PI / 2],   // +X → up: rotate Z +90°
+  2: [0,            0, -Math.PI / 2],   // -X → up: rotate Z -90°
+  3: [0,            0,  0           ],   // +Y → up: no rotation
+  4: [Math.PI,      0,  0           ],   // -Y → up: flip around X
+  5: [-Math.PI / 2, 0,  0           ],   // +Z → up: rotate X -90°
+  6: [ Math.PI / 2, 0,  0           ],   // -Z → up: rotate X +90°
+};
+
+// Returns target angle adjusted to be closest equivalent to `current` (avoids spinning many rotations)
+function closestTarget(current: number, target: number): number {
+  const k = Math.round((current - target) / (2 * Math.PI));
+  return target + k * 2 * Math.PI;
 }
 
 // ─── Camera auto-fit ──────────────────────────────────────────────────────────
@@ -408,14 +430,17 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
   const mountRef = useRef<HTMLDivElement>(null);
   const { gameState, isRolling, isMyTurn } = useGame();
   const { rollDice } = useSocket();
-  const { lastMove } = useGameStore();
+  const { lastMove, diceReveal } = useGameStore();
 
-  const isRollingRef   = useRef(isRolling);
-  const isMyTurnRef    = useRef(isMyTurn);
-  const onRollRef      = useRef<() => void>(onRollOverride ?? rollDice);
-  const gameStateRef   = useRef(gameState);
-  const onAnimDoneRef  = useRef(onAnimDone);
-  const winPlayedRef   = useRef(false);
+  const isRollingRef    = useRef(isRolling);
+  const isMyTurnRef     = useRef(isMyTurn);
+  const onRollRef       = useRef<() => void>(onRollOverride ?? rollDice);
+  const gameStateRef    = useRef(gameState);
+  const onAnimDoneRef   = useRef(onAnimDone);
+  const winPlayedRef    = useRef(false);
+  // Stores the adjusted-closest target Euler angles when settling after a roll
+  const diceSettleRef   = useRef<[number, number, number] | null>(null);
+  const wasRollingRef   = useRef(false);
 
   useEffect(() => { isRollingRef.current = isRolling; }, [isRolling]);
   useEffect(() => { isMyTurnRef.current = singlePlayer || isMyTurn; }, [isMyTurn, singlePlayer]);
@@ -433,12 +458,30 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
   const snakeGroupsRef = useRef<Map<number, THREE.Group>>(new Map());
   const ladderGroupsRef= useRef<Map<number, THREE.Group>>(new Map());
   const rafRef         = useRef<number | null>(null);
-  const diceSpinRef    = useRef(0);
   const pl1Ref         = useRef<THREE.PointLight | null>(null);
 
   const animQueueRef  = useRef<AnimStep[]>([]);
   const animStart     = useRef<number | null>(null);
   const animatingRef  = useRef(false);
+
+  // ── Dice settle — snap to correct face when reveal value is known ────────────
+  useEffect(() => {
+    const diceG = diceGroupRef.current;
+    if (diceReveal !== null && diceG) {
+      const target = DICE_FACE_ROTATIONS[diceReveal];
+      if (target) {
+        // Compute closest-equivalent angles from current rotation so we don't spin backwards
+        diceSettleRef.current = [
+          closestTarget(diceG.rotation.x, target[0]),
+          closestTarget(diceG.rotation.y, target[1]),
+          closestTarget(diceG.rotation.z, target[2]),
+        ];
+      }
+      wasRollingRef.current = false;
+    } else {
+      diceSettleRef.current = null;
+    }
+  }, [diceReveal]);
 
   // ── Scene init ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -571,13 +614,23 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
       const diceG = diceGroupRef.current;
       if (diceG) {
         if (isRollingRef.current) {
-          diceSpinRef.current += 0.14;
-          diceG.rotation.x = diceSpinRef.current;
-          diceG.rotation.y = diceSpinRef.current * 0.72;
+          wasRollingRef.current = true;
+          // Time-based tumble so it spins smoothly on all 3 axes
+          const t = Date.now() * 0.009;
+          diceG.rotation.x = t * 1.7;
+          diceG.rotation.y = t * 1.3;
+          diceG.rotation.z = t * 0.8;
+        } else if (diceSettleRef.current) {
+          // Settle toward correct face — lerp with slight slowdown
+          const [tx, ty, tz] = diceSettleRef.current;
+          diceG.rotation.x += (tx - diceG.rotation.x) * 0.14;
+          diceG.rotation.y += (ty - diceG.rotation.y) * 0.14;
+          diceG.rotation.z += (tz - diceG.rotation.z) * 0.14;
         } else {
-          diceG.rotation.x = THREE.MathUtils.lerp(diceG.rotation.x, 0, 0.1);
-          diceG.rotation.y = THREE.MathUtils.lerp(diceG.rotation.y, 0, 0.1);
-          diceSpinRef.current = 0;
+          // Idle — gently return to resting position (value-3 face up)
+          diceG.rotation.x += (0 - diceG.rotation.x) * 0.08;
+          diceG.rotation.y += Math.sin(Date.now() * 0.0008) * 0.004;
+          diceG.rotation.z += (0 - diceG.rotation.z) * 0.08;
         }
         diceG.position.y = 0.52 + Math.sin(Date.now() * 0.0022) * 0.06;
       }

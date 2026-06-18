@@ -13,6 +13,7 @@ export function resolvePosition(from: number, diceValue: number): {
   newPosition: number;
   hadSnake: boolean;
   hadLadder: boolean;
+  wasBlocked: boolean;
   snakeFrom?: number;
   ladderFrom?: number;
 } {
@@ -23,9 +24,8 @@ export function resolvePosition(from: number, diceValue: number): {
   let ladderFrom: number | undefined;
 
   if (newPosition > BOARD_SIZE) {
-    // Bounce back (can't exceed 100)
-    newPosition = BOARD_SIZE - (newPosition - BOARD_SIZE);
-    return { newPosition, hadSnake, hadLadder };
+    // Must reach exactly 100 — stay in place
+    return { newPosition: from, hadSnake: false, hadLadder: false, wasBlocked: true };
   }
 
   // Check for snake
@@ -46,7 +46,7 @@ export function resolvePosition(from: number, diceValue: number): {
     }
   }
 
-  return { newPosition, hadSnake, hadLadder, snakeFrom, ladderFrom };
+  return { newPosition, hadSnake, hadLadder, wasBlocked: false, snakeFrom, ladderFrom };
 }
 
 // ── Turn management ─────────────────────────────────────────────────────────
@@ -146,7 +146,9 @@ export function applyMove(state: GameState, playerId: string, diceValue: number)
   if (playerIndex === -1) throw new Error("Player not found");
 
   const player = state.players[playerIndex];
-  const { newPosition, hadSnake, hadLadder } = resolvePosition(player.position, diceValue);
+  const { newPosition, hadSnake, hadLadder, wasBlocked } = resolvePosition(player.position, diceValue);
+
+  const rolledSix = diceValue === 6;
 
   const move: GameMove = {
     playerId,
@@ -155,6 +157,8 @@ export function applyMove(state: GameState, playerId: string, diceValue: number)
     diceValue,
     hadSnake,
     hadLadder,
+    rolledSix,
+    wasBlocked,
     timestamp: Date.now(),
   };
 
@@ -164,10 +168,13 @@ export function applyMove(state: GameState, playerId: string, diceValue: number)
 
   const winner = isWinner(newPosition) ? updatedPlayers[playerIndex] : null;
 
+  // Keep same player if: rolled 6 (extra turn) OR blocked (couldn't move) — unless they won
+  const keepTurn = !winner && (rolledSix || wasBlocked);
+
   const newState: GameState = {
     ...state,
     players: updatedPlayers,
-    currentPlayerIndex: winner ? state.currentPlayerIndex : getNextPlayerIndex(state),
+    currentPlayerIndex: winner ? state.currentPlayerIndex : keepTurn ? state.currentPlayerIndex : getNextPlayerIndex(state),
     dice: { value: diceValue, rolling: false },
     moveHistory: [...state.moveHistory, move],
     winner,
