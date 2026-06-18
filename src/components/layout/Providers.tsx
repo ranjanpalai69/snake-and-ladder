@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import { useEffect, useRef, ReactNode } from "react";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
