@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Copy, ArrowLeft, Loader2, Bell } from "lucide-react";
-import { PLAYER_COLORS, type PlayerColor } from "@/types/game";
+import { Check, Copy, ArrowLeft, Loader2, Bell, Dices, Users, MessageSquare } from "lucide-react";
+import { PLAYER_COLORS, type PlayerColor, type GamePlayer } from "@/types/game";
 import { DynamicGameScene } from "@/components/3d/DynamicScene";
 import { PlayerPanel } from "@/components/game/PlayerPanel";
 import { GameControls } from "@/components/game/GameControls";
@@ -47,17 +47,15 @@ function WaitingRoom() {
   const { setReady, leaveRoom, chooseColor, pingReady } = useSocket();
   const router = useRouter();
 
-  // Remind button state
   const [showRemind, setShowRemind] = useState(false);
   const [remindCooldown, setRemindCooldown] = useState(0);
   const remindTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remindCooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const myPlayer = currentRoom?.players.find((p) => p.userId === user?.id);
-  const hasUnreadyPlayers = (currentRoom?.players.length ?? 0) >= 2 &&
-    currentRoom?.players.some((p) => !p.isReady);
+  const hasUnreadyPlayers =
+    (currentRoom?.players.length ?? 0) >= 2 && currentRoom?.players.some((p) => !p.isReady);
 
-  // Show remind button after 5s when there are unready players and I'm ready
   useEffect(() => {
     if (!myPlayer?.isReady || !hasUnreadyPlayers) {
       setShowRemind(false);
@@ -73,10 +71,7 @@ function WaitingRoom() {
     setRemindCooldown(30);
     remindCooldownRef.current = setInterval(() => {
       setRemindCooldown((n) => {
-        if (n <= 1) {
-          clearInterval(remindCooldownRef.current!);
-          return 0;
-        }
+        if (n <= 1) { clearInterval(remindCooldownRef.current!); return 0; }
         return n - 1;
       });
     }, 1000);
@@ -91,14 +86,15 @@ function WaitingRoom() {
 
   if (!currentRoom) return null;
 
-  const takenColors = currentRoom.players
-    .filter((p) => p.userId !== user?.id)
-    .map((p) => p.color);
+  const takenColors = currentRoom.players.filter((p) => p.userId !== user?.id).map((p) => p.color);
 
   function copyCode() {
     navigator.clipboard.writeText(currentRoom!.code);
     toast.success("Room code copied!");
   }
+
+  const minPlayers = 2;
+  const needMore = currentRoom.players.length < minPlayers;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8">
@@ -107,7 +103,7 @@ function WaitingRoom() {
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md glass rounded-2xl p-6 space-y-5 relative overflow-hidden"
       >
-        {/* ── Countdown overlay ─────────────────────────────────────────── */}
+        {/* Countdown overlay */}
         <AnimatePresence>
           {countdown !== null && (
             <motion.div
@@ -135,6 +131,7 @@ function WaitingRoom() {
             </motion.div>
           )}
         </AnimatePresence>
+
         {/* Header */}
         <div className="flex items-center gap-2">
           <button
@@ -157,12 +154,15 @@ function WaitingRoom() {
             <p className="text-xs text-slate-500 mb-0.5">Invite Code</p>
             <p className="font-mono text-2xl font-bold tracking-[0.3em] text-white">{currentRoom.code}</p>
           </div>
-          <button onClick={copyCode} className="p-2.5 rounded-lg bg-violet-600/20 text-violet-400 hover:bg-violet-600/30 transition-all">
+          <button
+            onClick={copyCode}
+            className="p-2.5 rounded-lg bg-violet-600/20 text-violet-400 hover:bg-violet-600/30 transition-all"
+          >
             <Copy className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Color picker — only shown to the local player */}
+        {/* Color picker — only shown before ready */}
         {myPlayer && !myPlayer.isReady && (
           <div>
             <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Your Color</p>
@@ -200,7 +200,7 @@ function WaitingRoom() {
           </div>
         )}
 
-        {/* Player slots */}
+        {/* Player slots — only real players, no bots */}
         <div className="space-y-2">
           {currentRoom.players.map((player) => {
             const hex = PLAYER_COLORS[player.color] ?? "#6366f1";
@@ -222,38 +222,55 @@ function WaitingRoom() {
                   <p className="text-[11px] capitalize" style={{ color: hex }}>{player.color}</p>
                 </div>
                 {player.userId === currentRoom.hostId && (
-                  <span className="text-[10px] text-violet-400 font-medium px-1.5 py-0.5 rounded-full bg-violet-900/30">Host</span>
+                  <span className="text-[10px] text-violet-400 font-medium px-1.5 py-0.5 rounded-full bg-violet-900/30">
+                    Host
+                  </span>
                 )}
-                {player.isReady
-                  ? <span className="flex items-center gap-1 text-xs text-green-400 font-medium"><Check className="w-3 h-3" />Ready</span>
-                  : <span className="text-xs text-slate-500">Not ready</span>
-                }
+                {player.isReady ? (
+                  <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
+                    <Check className="w-3 h-3" />Ready
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-500">Not ready</span>
+                )}
               </motion.div>
             );
           })}
+
+          {/* Empty slots — human placeholders only */}
           {Array.from({ length: currentRoom.maxPlayers - currentRoom.players.length }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-white/8">
-              <div className="w-9 h-9 rounded-full bg-white/5" />
-              <span className="text-sm text-slate-600 italic">Waiting for player...</span>
-            </div>
+            <motion.div
+              key={`empty-${i}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-white/8"
+            >
+              <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
+                <Users className="w-4 h-4 text-slate-600" />
+              </div>
+              <span className="text-sm text-slate-600 italic">Waiting for player…</span>
+            </motion.div>
           ))}
         </div>
 
+        {/* Ready button */}
         <button
           onClick={setReady}
           disabled={!!myPlayer?.isReady}
           className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-40"
           style={{
-            background: myPlayer?.isReady ? "rgba(34,197,94,0.15)" : "linear-gradient(135deg, #7c3aed, #4f46e5)",
+            background: myPlayer?.isReady
+              ? "rgba(34,197,94,0.15)"
+              : "linear-gradient(135deg, #7c3aed, #4f46e5)",
             border: myPlayer?.isReady ? "1px solid rgba(34,197,94,0.3)" : "1px solid transparent",
             color: myPlayer?.isReady ? "#22c55e" : "white",
           }}
         >
           <Check className="w-4 h-4" />
-          {myPlayer?.isReady ? "Waiting for others..." : "Ready Up"}
+          {myPlayer?.isReady ? "Waiting for others…" : "Ready Up"}
         </button>
 
-        {/* Remind button — appears 5s after marking ready if others aren't */}
+        {/* Remind button */}
         {showRemind && (
           <motion.button
             initial={{ opacity: 0, y: 6 }}
@@ -272,10 +289,69 @@ function WaitingRoom() {
           </motion.button>
         )}
 
-        {currentRoom.players.length < 2 && (
-          <p className="text-xs text-slate-500 text-center">Need at least 2 players to start</p>
+        {needMore && (
+          <p className="text-xs text-slate-500 text-center">
+            Need at least {minPlayers} players to start
+          </p>
         )}
       </motion.div>
+    </div>
+  );
+}
+
+// ── Mobile bottom panel with tabs ─────────────────────────────────────────────
+function MobileGamePanel({
+  players,
+  currentPlayerUserId,
+  myUserId,
+}: {
+  players: GamePlayer[];
+  currentPlayerUserId: string | undefined;
+  myUserId: string | undefined;
+}) {
+  const [tab, setTab] = useState<"controls" | "players" | "chat">("controls");
+
+  const tabs = [
+    { key: "controls" as const, label: "Controls", Icon: Dices },
+    { key: "players" as const, label: "Players", Icon: Users },
+    { key: "chat" as const, label: "Chat", Icon: MessageSquare },
+  ];
+
+  return (
+    <div
+      className="lg:hidden flex flex-col shrink-0 bg-black/60 backdrop-blur-md border-t border-white/8"
+      style={{ maxHeight: "240px" }}
+    >
+      {/* Tab bar */}
+      <div className="flex shrink-0 border-b border-white/8">
+        {tabs.map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors ${
+              tab === key
+                ? "text-violet-400 border-b-2 border-violet-500"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="overflow-y-auto flex-1 p-3">
+        {tab === "controls" && <GameControls />}
+        {tab === "players" && (
+          <PlayerPanel
+            players={players}
+            currentPlayerUserId={currentPlayerUserId}
+            myUserId={myUserId}
+          />
+        )}
+        {tab === "chat" && <ChatPanel />}
+      </div>
     </div>
   );
 }
@@ -283,7 +359,7 @@ function WaitingRoom() {
 // ── Main page ─────────────────────────────────────────────────────────────────
 function GamePageInner() {
   const params = useParams<{ roomId: string }>();
-  const { gameState, isReconnecting } = useGameStore();
+  const { gameState, isReconnecting, setGameState } = useGameStore();
   const { currentRoom, persistedRoomId, isConnected } = useRoomStore();
   const { user } = useAuthStore();
   const { leaveRoom } = useSocket();
@@ -293,19 +369,31 @@ function GamePageInner() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Warn before browser refresh/close when game is active
+  // Clear stale game state from a different room (e.g., old single-player or previous match)
   useEffect(() => {
-    const isActive = gameState?.status === "playing";
+    if (gameState && gameState.roomId !== params.roomId) {
+      setGameState(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.roomId]);
+
+  // Warn before browser refresh when game is active in THIS room
+  useEffect(() => {
+    const isActive =
+      gameState?.status === "playing" && gameState?.roomId === params.roomId;
     if (!isActive) return;
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [gameState?.status]);
+  }, [gameState?.status, gameState?.roomId, params.roomId]);
 
+  // Redirect to lobby if no context for this room after grace period
   useEffect(() => {
-    // Don't redirect immediately — give reconnect time to fire (3 seconds)
     const roomId = params.roomId;
-    const hasContext = !!currentRoom || !!gameState || persistedRoomId === roomId;
+    const hasContext =
+      !!currentRoom ||
+      (gameState?.roomId === roomId) ||
+      persistedRoomId === roomId;
 
     if (!hasContext && !isReconnecting) {
       redirectTimerRef.current = setTimeout(() => {
@@ -318,9 +406,12 @@ function GamePageInner() {
     return () => {
       if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
     };
-  }, [currentRoom, gameState, isReconnecting, persistedRoomId, params.roomId]);
+  }, [currentRoom, gameState, isReconnecting, persistedRoomId, params.roomId, router]);
 
-  const isPlaying = gameState?.status === "playing" || gameState?.status === "finished";
+  // Only treat as "in-game" when the active gameState belongs to THIS room
+  const isPlaying =
+    (gameState?.status === "playing" || gameState?.status === "finished") &&
+    gameState?.roomId === params.roomId;
 
   if (!mounted) {
     return (
@@ -334,9 +425,14 @@ function GamePageInner() {
     return (
       <>
         <Navbar />
-        {isReconnecting || (!currentRoom && persistedRoomId === params.roomId && !isConnected) ? (
+        {isReconnecting ||
+        (!currentRoom && persistedRoomId === params.roomId && !isConnected) ? (
           <div className="min-h-screen flex items-center justify-center">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center"
+            >
               <Loader2 className="w-10 h-10 text-violet-400 animate-spin mx-auto mb-3" />
               <p className="text-white font-semibold">Reconnecting to your game...</p>
               <p className="text-slate-500 text-sm mt-1">Please wait</p>
@@ -353,31 +449,43 @@ function GamePageInner() {
     );
   }
 
+  const currentPlayerUserId = gameState.players[gameState.currentPlayerIndex]?.userId;
+
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Navbar />
-      <div className="flex flex-1 overflow-hidden pt-16">
-        {/* 3D Canvas */}
-        <div className="flex-1 relative">
+
+      {/* Game area — stacks vertically on mobile, side-by-side on desktop */}
+      <div className="flex flex-1 overflow-hidden pt-16 flex-col lg:flex-row">
+
+        {/* 3D board — full-width on mobile, flex-1 on desktop */}
+        <div className="flex-1 relative min-h-0">
           <DynamicGameScene />
           {isReconnecting && <ReconnectingOverlay />}
         </div>
 
-        {/* Right sidebar */}
+        {/* Desktop sidebar — hidden on mobile */}
         <motion.div
           initial={{ x: 320 }}
           animate={{ x: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
-          className="w-80 flex flex-col gap-3 p-4 bg-black/40 border-l border-white/8 overflow-y-auto"
+          className="hidden lg:flex w-80 flex-col gap-3 p-4 bg-black/40 border-l border-white/8 overflow-y-auto"
         >
           <PlayerPanel
             players={gameState.players}
-            currentPlayerUserId={gameState.players[gameState.currentPlayerIndex]?.userId}
+            currentPlayerUserId={currentPlayerUserId}
             myUserId={user?.id}
           />
           <GameControls />
           <ChatPanel />
         </motion.div>
+
+        {/* Mobile bottom panel — hidden on desktop */}
+        <MobileGamePanel
+          players={gameState.players}
+          currentPlayerUserId={currentPlayerUserId}
+          myUserId={user?.id}
+        />
       </div>
 
       <WinModal />

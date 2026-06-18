@@ -523,10 +523,11 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
     };
     renderer.domElement.addEventListener("click", onClick);
 
-    // Resize → refit camera
+    // Resize → refit camera (both window resize and container resize via ResizeObserver)
     const onResize = () => {
       if (!mount) return;
       const nw = mount.clientWidth, nh = mount.clientHeight;
+      if (!nw || !nh) return;
       if (cameraRef.current) {
         fitCamera(cameraRef.current, nw, nh);
         controlsRef.current?.target.set(0, 0, 0);
@@ -535,6 +536,8 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
       renderer.setSize(nw, nh);
     };
     window.addEventListener("resize", onResize);
+    const ro = new ResizeObserver(onResize);
+    ro.observe(mount);
 
     // Animation loop
     const animate = () => {
@@ -606,6 +609,7 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
       disposed = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", onResize);
+      ro.disconnect();
       renderer.domElement.removeEventListener("click", onClick);
       controlsRef.current?.dispose();
       renderer.dispose();
