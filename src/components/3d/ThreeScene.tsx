@@ -440,6 +440,8 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
   const winPlayedRef    = useRef(false);
   // Stores the adjusted-closest target Euler angles when settling after a roll
   const diceSettleRef   = useRef<[number, number, number] | null>(null);
+  // Stores the exact final rotation once the dice has snapped to the correct face — holds there until next roll
+  const diceLastFaceRef = useRef<[number, number, number] | null>(null);
   const wasRollingRef   = useRef(false);
 
   useEffect(() => { isRollingRef.current = isRolling; }, [isRolling]);
@@ -466,21 +468,18 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
 
   // ── Dice settle — snap to correct face when reveal value is known ────────────
   useEffect(() => {
+    if (diceReveal === null) return; // don't clear on null — RAF snaps & holds the last face
     const diceG = diceGroupRef.current;
-    if (diceReveal !== null && diceG) {
-      const target = DICE_FACE_ROTATIONS[diceReveal];
-      if (target) {
-        // Compute closest-equivalent angles from current rotation so we don't spin backwards
-        diceSettleRef.current = [
-          closestTarget(diceG.rotation.x, target[0]),
-          closestTarget(diceG.rotation.y, target[1]),
-          closestTarget(diceG.rotation.z, target[2]),
-        ];
-      }
-      wasRollingRef.current = false;
-    } else {
-      diceSettleRef.current = null;
-    }
+    if (!diceG) return;
+    const target = DICE_FACE_ROTATIONS[diceReveal];
+    if (!target) return;
+    // Compute closest-equivalent angles from current rotation so we don't spin backwards
+    diceSettleRef.current = [
+      closestTarget(diceG.rotation.x, target[0]),
+      closestTarget(diceG.rotation.y, target[1]),
+      closestTarget(diceG.rotation.z, target[2]),
+    ];
+    wasRollingRef.current = false;
   }, [diceReveal]);
 
   // ── Scene init ────────────────────────────────────────────────────────────
@@ -610,27 +609,47 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
         }
       }
 
-      // Dice spin / bob
+      // Dice spin / bob — 4 states:
+      // 1) spinning  — new roll in progress
+      // 2) settling  — lerping toward correct face after roll
+      // 3) held      — frozen on correct face, waiting for next roll
+      // 4) idle      — never rolled yet, gentle drift to neutral
       const diceG = diceGroupRef.current;
       if (diceG) {
         if (isRollingRef.current) {
+          // State 1: tumble on new roll — clear last face so settle computes fresh
           wasRollingRef.current = true;
-          // Time-based tumble so it spins smoothly on all 3 axes
+          diceLastFaceRef.current = null;
+          diceSettleRef.current = null;
           const t = Date.now() * 0.009;
           diceG.rotation.x = t * 1.7;
           diceG.rotation.y = t * 1.3;
           diceG.rotation.z = t * 0.8;
         } else if (diceSettleRef.current) {
-          // Settle toward correct face — lerp with slight slowdown
+          // State 2: settle toward correct face
           const [tx, ty, tz] = diceSettleRef.current;
-          diceG.rotation.x += (tx - diceG.rotation.x) * 0.14;
-          diceG.rotation.y += (ty - diceG.rotation.y) * 0.14;
-          diceG.rotation.z += (tz - diceG.rotation.z) * 0.14;
+          const dx = tx - diceG.rotation.x;
+          const dy = ty - diceG.rotation.y;
+          const dz = tz - diceG.rotation.z;
+          if (Math.abs(dx) < 0.005 && Math.abs(dy) < 0.005 && Math.abs(dz) < 0.005) {
+            // Snap to exact and transition to held state
+            diceG.rotation.set(tx, ty, tz);
+            diceLastFaceRef.current = [tx, ty, tz];
+            diceSettleRef.current = null;
+          } else {
+            diceG.rotation.x += dx * 0.14;
+            diceG.rotation.y += dy * 0.14;
+            diceG.rotation.z += dz * 0.14;
+          }
+        } else if (diceLastFaceRef.current) {
+          // State 3: frozen on correct face — absolutely no movement
+          const [lx, ly, lz] = diceLastFaceRef.current;
+          diceG.rotation.set(lx, ly, lz);
         } else {
-          // Idle — gently return to resting position (value-3 face up)
-          diceG.rotation.x += (0 - diceG.rotation.x) * 0.08;
-          diceG.rotation.y += Math.sin(Date.now() * 0.0008) * 0.004;
-          diceG.rotation.z += (0 - diceG.rotation.z) * 0.08;
+          // State 4: never rolled — slow drift to neutral orientation
+          diceG.rotation.x += (0 - diceG.rotation.x) * 0.05;
+          diceG.rotation.y += (0 - diceG.rotation.y) * 0.05;
+          diceG.rotation.z += (0 - diceG.rotation.z) * 0.05;
         }
         diceG.position.y = 0.52 + Math.sin(Date.now() * 0.0022) * 0.06;
       }
