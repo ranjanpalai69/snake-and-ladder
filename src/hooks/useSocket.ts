@@ -62,6 +62,10 @@ export function useSocket() {
     getSocket().emit("room:ready");
   }, []);
 
+  const pingReady = useCallback(() => {
+    getSocket().emit("room:ping_ready");
+  }, []);
+
   const chooseColor = useCallback(
     (color: PlayerColor): Promise<boolean> =>
       new Promise((resolve) => {
@@ -74,5 +78,5 @@ export function useSocket() {
     [setCurrentRoom]
   );
 
-  return { rollDice, sendChat, createRoom, joinRoom, leaveRoom, setReady, chooseColor };
+  return { rollDice, sendChat, createRoom, joinRoom, leaveRoom, setReady, pingReady, chooseColor };
 }

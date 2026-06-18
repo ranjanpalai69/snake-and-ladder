@@ -137,6 +137,27 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
       io.to(roomId).emit("game:started", gameState);
     }
   });
+
+  socket.on("room:ping_ready", async () => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+
+    const gameRoom = rooms.get(roomId);
+    if (!gameRoom || gameRoom.room.status !== "waiting") return;
+
+    // Only ready players can send reminders
+    const sender = gameRoom.room.players.find((p) => p.userId === userId);
+    if (!sender?.isReady) return;
+
+    // Ping each unready player's socket individually
+    const socketsInRoom = await io.in(roomId).fetchSockets();
+    for (const s of socketsInRoom) {
+      const player = gameRoom.room.players.find((p) => p.userId === s.data.userId && !p.isReady);
+      if (player) {
+        io.to(s.id).emit("room:remind_ready", { fromUsername: username });
+      }
+    }
+  });
 }
 
 export { getRoomSummaries };

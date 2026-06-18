@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Check, Copy, ArrowLeft, Loader2 } from "lucide-react";
+import { Check, Copy, ArrowLeft, Loader2, Bell } from "lucide-react";
 import { PLAYER_COLORS, type PlayerColor } from "@/types/game";
 import { DynamicGameScene } from "@/components/3d/DynamicScene";
 import { PlayerPanel } from "@/components/game/PlayerPanel";
@@ -44,12 +44,53 @@ const ALL_COLORS = Object.keys(PLAYER_COLORS) as PlayerColor[];
 function WaitingRoom() {
   const { currentRoom } = useRoomStore();
   const { user } = useAuthStore();
-  const { setReady, leaveRoom, chooseColor } = useSocket();
+  const { setReady, leaveRoom, chooseColor, pingReady } = useSocket();
   const router = useRouter();
+
+  // Remind button state
+  const [showRemind, setShowRemind] = useState(false);
+  const [remindCooldown, setRemindCooldown] = useState(0);
+  const remindTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remindCooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const myPlayer = currentRoom?.players.find((p) => p.userId === user?.id);
+  const hasUnreadyPlayers = (currentRoom?.players.length ?? 0) >= 2 &&
+    currentRoom?.players.some((p) => !p.isReady);
+
+  // Show remind button after 5s when there are unready players and I'm ready
+  useEffect(() => {
+    if (!myPlayer?.isReady || !hasUnreadyPlayers) {
+      setShowRemind(false);
+      return;
+    }
+    remindTimerRef.current = setTimeout(() => setShowRemind(true), 5000);
+    return () => { if (remindTimerRef.current) clearTimeout(remindTimerRef.current); };
+  }, [myPlayer?.isReady, hasUnreadyPlayers]);
+
+  const handleRemind = useCallback(() => {
+    if (remindCooldown > 0) return;
+    pingReady();
+    setRemindCooldown(30);
+    remindCooldownRef.current = setInterval(() => {
+      setRemindCooldown((n) => {
+        if (n <= 1) {
+          clearInterval(remindCooldownRef.current!);
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+  }, [remindCooldown, pingReady]);
+
+  useEffect(() => {
+    return () => {
+      if (remindTimerRef.current) clearTimeout(remindTimerRef.current);
+      if (remindCooldownRef.current) clearInterval(remindCooldownRef.current);
+    };
+  }, []);
 
   if (!currentRoom) return null;
 
-  const myPlayer = currentRoom.players.find((p) => p.userId === user?.id);
   const takenColors = currentRoom.players
     .filter((p) => p.userId !== user?.id)
     .map((p) => p.color);
@@ -183,6 +224,25 @@ function WaitingRoom() {
           <Check className="w-4 h-4" />
           {myPlayer?.isReady ? "Waiting for others..." : "Ready Up"}
         </button>
+
+        {/* Remind button — appears 5s after marking ready if others aren't */}
+        {showRemind && (
+          <motion.button
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={handleRemind}
+            disabled={remindCooldown > 0}
+            className="w-full py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 text-sm transition-all disabled:opacity-50"
+            style={{
+              background: "rgba(245,158,11,0.15)",
+              border: "1px solid rgba(245,158,11,0.35)",
+              color: "#fbbf24",
+            }}
+          >
+            <Bell className="w-4 h-4" />
+            {remindCooldown > 0 ? `Reminder sent (${remindCooldown}s)` : "Remind others to get ready"}
+          </motion.button>
+        )}
 
         {currentRoom.players.length < 2 && (
           <p className="text-xs text-slate-500 text-center">Need at least 2 players to start</p>

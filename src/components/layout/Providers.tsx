@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import { useEffect, useRef, ReactNode } from "react";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
@@ -8,6 +10,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useRoomStore } from "@/stores/roomStore";
 import { useGameStore } from "@/stores/gameStore";
 import { connectSocket, disconnectSocket } from "@/lib/socket/client";
+import { playRemindReady } from "@/lib/sounds";
 
 function AuthInitializer() {
   useAuth();
@@ -98,6 +101,19 @@ function SocketInitializer() {
       else if (type === "error") toast.error(message);
       else toast(message);
     });
+    socket.on("room:remind_ready", ({ fromUsername }) => {
+      playRemindReady();
+      toast(`${fromUsername} is waiting — click Ready Up!`, {
+        icon: "🔔",
+        duration: 6000,
+        style: {
+          background: "#3b0764",
+          border: "1px solid rgba(167,139,250,0.5)",
+          color: "#e9d5ff",
+          fontWeight: "600",
+        },
+      });
+    });
 
     return () => {
       boundRef.current = false;
@@ -114,6 +130,7 @@ function SocketInitializer() {
       socket.off("chat:message");
       socket.off("system:error");
       socket.off("system:notification");
+      socket.off("room:remind_ready");
     };
   }, [session?.access_token, profile?.id]);
 

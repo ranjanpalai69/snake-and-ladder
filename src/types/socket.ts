@@ -20,6 +20,9 @@ export interface ClientToServerEvents {
 
   // Presence
   "presence:ping": () => void;
+
+  // Ready reminder (sent by a ready player to ping unready ones)
+  "room:ping_ready": () => void;
 }
 
 // ── Events the SERVER sends to the CLIENT ──────────────────────────────────
@@ -44,6 +47,9 @@ export interface ServerToClientEvents {
   "system:error": (message: string) => void;
   "system:notification": (notification: SystemNotification) => void;
   "presence:pong": () => void;
+
+  // Sent to unready players when another player pings them
+  "room:remind_ready": (payload: { fromUsername: string }) => void;
 }
 
 // ── Inter-server events (for scaling with Redis adapter) ───────────────────

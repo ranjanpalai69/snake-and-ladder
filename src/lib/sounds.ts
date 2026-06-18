@@ -103,6 +103,28 @@ export function playLadderClimb() {
   } catch {}
 }
 
+export function playRemindReady() {
+  try {
+    const c = getCtx();
+    const now = c.currentTime;
+    // Attention-grabbing triple ping
+    const notes = [880, 1047, 1319];
+    notes.forEach((freq, i) => {
+      const t = now + i * 0.16;
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.22, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.start(t);
+      osc.stop(t + 0.45);
+    });
+  } catch {}
+}
+
 export function playWin() {
   try {
     const c = getCtx();
