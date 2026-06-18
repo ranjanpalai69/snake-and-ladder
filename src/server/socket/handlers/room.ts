@@ -67,7 +67,7 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
     const gameRoom = rooms.get(roomId);
     if (!gameRoom) return cb({ success: false, error: "Room not found" });
     if (gameRoom.isFull) return cb({ success: false, error: "Room is full" });
-    if (gameRoom.room.status !== "waiting") return cb({ success: false, error: "Game already started" });
+    if (gameRoom.room.status !== "waiting") return cb({ success: false, error: gameRoom.room.status === "starting" ? "Game is starting..." : "Game already started" });
 
     const avatarId = (socket.handshake.auth.avatarId ?? "avatar_01") as AvatarId;
     const rank = socket.handshake.auth.rank ?? { tier: "bronze", stars: 0, totalStars: 0, points: 0 };
@@ -133,6 +133,11 @@ export function registerRoomHandlers(io: IoServer, socket: IoSocket) {
     io.to(roomId).emit("room:updated", gameRoom.room);
 
     if (allReady) {
+      // Lock room immediately so no new players can sneak in during countdown
+      gameRoom.room.status = "starting";
+      io.to(roomId).emit("room:updated", gameRoom.room);
+      io.emit("room:list:updated", getRoomSummaries());
+
       // Broadcast countdown: 3 → 2 → 1, then start
       io.to(roomId).emit("room:countdown", { seconds: 3 });
       setTimeout(() => io.to(roomId).emit("room:countdown", { seconds: 2 }), 1000);

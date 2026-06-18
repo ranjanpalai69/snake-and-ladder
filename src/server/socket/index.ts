@@ -173,6 +173,10 @@ export function createSocketServer(httpServer: HttpServer) {
 
       gameRoom.setPlayerDisconnected(userId);
       io.to(roomId).emit("room:updated", gameRoom.room);
+      // Push updated game state so clients see the disconnected badge immediately
+      if (gameRoom.gameState) {
+        io.to(roomId).emit("game:state", gameRoom.gameState);
+      }
 
       if (gameRoom.room.status === "waiting") {
         // Remove immediately from lobby rooms

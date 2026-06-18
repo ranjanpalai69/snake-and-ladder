@@ -27,14 +27,21 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
-    supabase
-      .from("leaderboard_view" as any)
-      .select("*")
-      .limit(50)
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("leaderboard_view" as any)
+          .select("*")
+          .order("rank_points", { ascending: false })
+          .limit(50);
+        if (error) console.error("[leaderboard]", error.message);
         setRows((data as LeaderboardRow[]) ?? []);
+      } catch (err) {
+        console.error("[leaderboard] fetch failed:", err);
+      } finally {
         setLoading(false);
-      });
+      }
+    })();
   }, []);
 
   return (

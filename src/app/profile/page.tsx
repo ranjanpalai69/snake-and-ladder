@@ -7,18 +7,31 @@ import { Navbar } from "@/components/layout/Navbar";
 import { AvatarPicker } from "@/components/profile/AvatarPicker";
 import { StatsCard } from "@/components/profile/StatsCard";
 import { MatchHistory } from "@/components/profile/MatchHistory";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { useProfile } from "@/hooks/useProfile";
 import type { AvatarId } from "@/types/game";
 
 export default function ProfilePage() {
-  const { profile } = useAuthStore();
+  const { profile, isLoading } = useAuthStore();
   const { updateUsername, saving } = useProfile();
+  const router = useRouter();
   const [editingName, setEditingName] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [activeTab, setActiveTab] = useState<"stats" | "history" | "avatar">("stats");
 
-  if (!profile) return null;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    router.replace("/login");
+    return null;
+  }
 
   async function handleSaveName(e: FormEvent) {
     e.preventDefault();
