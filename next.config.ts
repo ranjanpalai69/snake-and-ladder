@@ -5,42 +5,35 @@ const withPWA = require("next-pwa")({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
-  // Offline fallback — single-player works without network
   fallbacks: {
     document: "/offline",
   },
   runtimeCaching: [
-    // App shell — always serve from cache
     {
-      urlPattern: /^\/(?:login|signup|lobby|profile|leaderboard|single-player)?$/,
+      urlPattern: /^\/(?:login|signup|lobby|profile|leaderboard|single-player|local)?$/,
       handler: "StaleWhileRevalidate",
       options: { cacheName: "pages-cache", expiration: { maxEntries: 20 } },
     },
-    // Static assets — cache first
     {
       urlPattern: /\/_next\/static\/.*/,
       handler: "CacheFirst",
       options: { cacheName: "next-static", expiration: { maxEntries: 200, maxAgeSeconds: 86400 * 30 } },
     },
-    // Next.js image optimization
     {
       urlPattern: /\/_next\/image\?.*/,
       handler: "StaleWhileRevalidate",
       options: { cacheName: "next-images", expiration: { maxEntries: 100 } },
     },
-    // Fonts — cache forever (they don't change)
     {
       urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
       handler: "CacheFirst",
       options: { cacheName: "google-fonts", expiration: { maxEntries: 20, maxAgeSeconds: 86400 * 365 } },
     },
-    // 3D assets from /public
     {
       urlPattern: /\/assets\/.*/,
       handler: "CacheFirst",
       options: { cacheName: "game-assets", expiration: { maxEntries: 100, maxAgeSeconds: 86400 * 7 } },
     },
-    // Supabase REST (best-effort — gracefully fails offline)
     {
       urlPattern: /^https:\/\/.*\.supabase\.co\/.*/,
       handler: "NetworkFirst",
@@ -50,7 +43,6 @@ const withPWA = require("next-pwa")({
         expiration: { maxEntries: 50, maxAgeSeconds: 300 },
       },
     },
-    // Everything else network-first
     {
       urlPattern: /^https?.*/,
       handler: "NetworkFirst",
@@ -61,7 +53,10 @@ const withPWA = require("next-pwa")({
 
 const nextConfig: NextConfig = {
   transpilePackages: ["three"],
+  compress: true,
+  poweredByHeader: false,
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
@@ -75,6 +70,33 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+        ],
+      },
+      // Long-lived cache for immutable Next.js chunks
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      // Moderate cache for public assets
+      {
+        source: "/assets/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" },
+        ],
+      },
+      // Manifest and icons — cache well
+      {
+        source: "/(manifest.json|favicon.ico|browserconfig.xml)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400" },
         ],
       },
     ];
