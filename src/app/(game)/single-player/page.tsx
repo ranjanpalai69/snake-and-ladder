@@ -103,10 +103,20 @@ function SinglePlayerPageInner() {
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<"pick" | "play">("pick");
   const [withBot, setWithBot] = useState(false);
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const animBusyRef = useRef(false);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Warn before browser refresh/close during active game
+  useEffect(() => {
+    const active = mode === "play" && !!gameState && gameState.status !== "finished";
+    if (!active) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [mode, gameState?.status]);
 
   // Init game after mode selected
   const startGame = useCallback((bot: boolean) => {
@@ -190,6 +200,15 @@ function SinglePlayerPageInner() {
     reset();
     animBusyRef.current = false;
     setMode("pick");
+  }
+
+  function tryLeave() {
+    // If game is active, show in-app warning; otherwise leave immediately
+    if (mode === "play" && gameState && gameState.status !== "finished") {
+      setShowLeaveWarning(true);
+    } else {
+      handleRestart();
+    }
   }
 
   // ── Turn label ────────────────────────────────────────────────────────────
@@ -310,7 +329,7 @@ function SinglePlayerPageInner() {
           )}
 
           <button
-            onClick={handleRestart}
+            onClick={tryLeave}
             className="flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors py-2 shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" /> Back to menu
@@ -319,6 +338,39 @@ function SinglePlayerPageInner() {
       </div>
 
       <WinModal />
+
+      {/* ── Leave warning modal ────────────────────────────────────────── */}
+      {showLeaveWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 16 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="w-full max-w-xs bg-slate-900 border border-white/10 rounded-2xl p-6 space-y-5 text-center"
+          >
+            <div className="w-12 h-12 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+              <RotateCcw className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <p className="font-display font-bold text-white text-lg">Leave game?</p>
+              <p className="text-sm text-slate-400 mt-1">Your progress will be lost. This can't be undone.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowLeaveWarning(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition-all"
+              >
+                Stay
+              </button>
+              <button
+                onClick={() => { setShowLeaveWarning(false); handleRestart(); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-red-600/80 hover:bg-red-600 text-white transition-all"
+              >
+                Leave
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

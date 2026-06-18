@@ -293,6 +293,15 @@ function GamePageInner() {
 
   useEffect(() => { setMounted(true); }, []);
 
+  // Warn before browser refresh/close when game is active
+  useEffect(() => {
+    const isActive = gameState?.status === "playing";
+    if (!isActive) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [gameState?.status]);
+
   useEffect(() => {
     // Don't redirect immediately — give reconnect time to fire (3 seconds)
     const roomId = params.roomId;
