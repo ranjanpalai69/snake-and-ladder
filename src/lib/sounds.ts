@@ -1,8 +1,24 @@
 let ctx: AudioContext | null = null;
 
+// iOS/Android require AudioContext to be resumed inside a user gesture.
+// Call unlockAudio() on the first touchstart/click to unlock the context.
+export function unlockAudio(): void {
+  try {
+    if (!ctx || ctx.state === "closed") ctx = new AudioContext();
+    // Play a one-sample silent buffer — this is the only reliable iOS unlock
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+    src.stop(0);
+    ctx.resume().catch(() => {});
+  } catch {}
+}
+
 function getCtx(): AudioContext {
   if (!ctx || ctx.state === "closed") ctx = new AudioContext();
-  if (ctx.state === "suspended") ctx.resume();
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
   return ctx;
 }
 
@@ -48,7 +64,6 @@ export function playSnakeBite() {
   try {
     const c = getCtx();
     const now = c.currentTime;
-    // Hiss
     const bufLen = Math.floor(c.sampleRate * 0.6);
     const buf = c.createBuffer(1, bufLen, c.sampleRate);
     const data = buf.getChannelData(0);
@@ -67,7 +82,6 @@ export function playSnakeBite() {
     gain.connect(c.destination);
     src.start(now);
 
-    // Descending tone
     const osc = c.createOscillator();
     const g2 = c.createGain();
     osc.type = "sawtooth";
@@ -107,7 +121,6 @@ export function playRemindReady() {
   try {
     const c = getCtx();
     const now = c.currentTime;
-    // Attention-grabbing triple ping
     const notes = [880, 1047, 1319];
     notes.forEach((freq, i) => {
       const t = now + i * 0.16;

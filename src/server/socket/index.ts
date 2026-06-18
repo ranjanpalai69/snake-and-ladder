@@ -213,51 +213,30 @@ export function createSocketServer(httpServer: HttpServer) {
         io.to(roomId).emit("room:player:left", userId);
         if (gameRoom.isEmpty) rooms.delete(roomId);
       } else {
-        // Give 90s to reconnect during active game before removing
-        setTimeout(() => {
-          const room = rooms.get(roomId);
-          if (!room) return;
-          const p = room.room.players.find((pl) => pl.userId === userId);
-          if (!p || p.isConnected) return; // reconnected — do nothing
+        // Active game — player stays disconnected so others can invite them back or skip their turn.
+        // Remaining connected players use game:skip_turn / game:kick_player / game:invite_rejoin.
+        // Only auto-abandon if every player in the room has disconnected (truly empty).
+        const stillConnected = gameRoom.room.players.filter(
+          (p) => p.isConnected && p.userId !== userId
+        ).length;
 
-          // Capture username before removal
-          const leftUsername = p.username;
-
-          // Clear pending invite — they didn't come back
-          pendingRejoinInvites.delete(userId);
-
-          room.removePlayer(userId);
-          io.to(roomId).emit("room:player:left", userId);
-
-          const gs = room.gameState;
-          if (!gs) return;
-
-          // Tell remaining players who left and how many remain
-          io.to(roomId).emit("game:player_left", {
-            userId,
-            username: leftUsername,
-            remainingCount: gs.players.length,
-          });
-
-          if (!room.room.players.some((pl) => pl.isConnected) || gs.players.length === 0) {
-            // All players gone — abandon and persist
-            gs.status = "finished";
-            io.to(roomId).emit("game:finished", gs);
-            persistMatchResult(gs, "abandoned").catch((e) =>
-              console.error("[socket:disconnect] persist abandoned failed:", e)
-            );
+        if (stillConnected === 0) {
+          // Nobody connected — abandon after 10 minutes of total silence
+          setTimeout(() => {
+            const room = rooms.get(roomId);
+            if (!room) return;
+            if (room.room.players.some((p) => p.isConnected)) return; // someone rejoined
+            const gs = room.gameState;
+            if (gs) {
+              gs.status = "finished";
+              io.to(roomId).emit("game:finished", gs);
+              persistMatchResult(gs, "abandoned").catch((e) =>
+                console.error("[socket:disconnect] persist abandoned failed:", e)
+              );
+            }
             rooms.delete(roomId);
-          } else if (gs.status === "finished") {
-            // Only one player left in state — game over
-            io.to(roomId).emit("game:finished", gs);
-            persistMatchResult(gs).catch((e) =>
-              console.error("[socket:disconnect] persist failed:", e)
-            );
-          } else {
-            // 2+ players remain — game continues; turn index already fixed in removePlayer
-            io.to(roomId).emit("game:state", gs);
-          }
-        }, 90_000);
+          }, 10 * 60_000);
+        }
       }
     });
   });

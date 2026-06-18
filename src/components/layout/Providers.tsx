@@ -9,10 +9,24 @@ import { useAuthStore } from "@/stores/authStore";
 import { useRoomStore } from "@/stores/roomStore";
 import { useGameStore } from "@/stores/gameStore";
 import { connectSocket, disconnectSocket } from "@/lib/socket/client";
-import { playRemindReady } from "@/lib/sounds";
+import { playRemindReady, unlockAudio } from "@/lib/sounds";
 
 function AuthInitializer() {
   useAuth();
+  return null;
+}
+
+// Unlocks WebAudio on mobile (iOS/Android) on first user gesture
+function AudioUnlocker() {
+  useEffect(() => {
+    const handler = () => unlockAudio();
+    document.addEventListener("touchstart", handler, { passive: true, once: true });
+    document.addEventListener("click", handler, { passive: true, once: true });
+    return () => {
+      document.removeEventListener("touchstart", handler);
+      document.removeEventListener("click", handler);
+    };
+  }, []);
   return null;
 }
 
@@ -360,6 +374,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <>
       <AuthInitializer />
+      <AudioUnlocker />
       <SocketInitializer />
       {children}
       <Toaster

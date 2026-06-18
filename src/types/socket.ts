@@ -21,6 +21,8 @@ export interface ClientToServerEvents {
   "game:kick_player": (payload: { targetUserId: string }, cb: (res: SocketResponse<GameState>) => void) => void;
   /** Send/re-send a rejoin invite to a disconnected player */
   "game:invite_rejoin": (payload: { targetUserId: string }) => void;
+  /** Skip the disconnected player's turn (any connected player may call) */
+  "game:skip_turn": (payload: { targetUserId: string }, cb: (res: SocketResponse<GameState>) => void) => void;
 
   // Chat
   "chat:message": (message: string) => void;

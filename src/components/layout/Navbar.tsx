@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -8,7 +9,6 @@ import {
   User,
   Trophy,
   LogOut,
-  Swords,
   Wifi,
   WifiOff,
   Menu,
@@ -54,9 +54,13 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center">
-            <Swords className="w-4 h-4 text-white" />
-          </div>
+          <Image
+            src="/assets/icons/snake-ladder-favicon.png"
+            alt="Snake & Ladder"
+            width={32}
+            height={32}
+            className="rounded-lg"
+          />
           <span className="font-display font-bold text-lg text-white tracking-wide">
             Snake<span className="text-violet-400">&amp;</span>Ladder
           </span>

@@ -41,43 +41,66 @@ export function registerGameHandlers(io: IoServer, socket: IoSocket) {
   });
 
   // ── Host kicks a disconnected/refusing player ─────────────────────────────
+  // ── Any connected player can skip a disconnected player's turn ───────────
+  socket.on("game:skip_turn", ({ targetUserId }, cb) => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return cb({ success: false, error: "Not in a room" });
+
+    const gameRoom = rooms.get(roomId);
+    if (!gameRoom) return cb({ success: false, error: "Room not found" });
+
+    const gs = gameRoom.gameState;
+    if (!gs || gs.status !== "playing") return cb({ success: false, error: "Game not in progress" });
+
+    const currentPlayer = gs.players[gs.currentPlayerIndex];
+    if (currentPlayer.userId !== targetUserId)
+      return cb({ success: false, error: "Not that player's turn" });
+    if (currentPlayer.isConnected)
+      return cb({ success: false, error: "Player is still connected" });
+
+    gs.currentPlayerIndex = (gs.currentPlayerIndex + 1) % gs.players.length;
+
+    io.to(roomId).emit("game:state", gs);
+    io.to(roomId).emit("game:turn", gs.players[gs.currentPlayerIndex].userId);
+    io.to(roomId).emit("system:notification", {
+      type: "info",
+      message: `${currentPlayer.username}'s turn was skipped.`,
+      timestamp: Date.now(),
+    });
+
+    cb({ success: true, data: gs });
+  });
+
+  // ── Any connected player can remove a disconnected player ─────────────────
   socket.on("game:kick_player", ({ targetUserId }, cb) => {
     const roomId = socket.data.roomId;
     if (!roomId) return cb({ success: false, error: "Not in a room" });
 
     const gameRoom = rooms.get(roomId);
     if (!gameRoom) return cb({ success: false, error: "Room not found" });
-    if (gameRoom.room.hostId !== userId) return cb({ success: false, error: "Only the host can remove players" });
 
     const target = gameRoom.room.players.find((p) => p.userId === targetUserId);
     if (!target) return cb({ success: false, error: "Player not found in room" });
-    if (target.isConnected) return cb({ success: false, error: "Cannot kick a connected player" });
+    if (target.isConnected) return cb({ success: false, error: "Cannot remove a connected player" });
 
-    // Remove the player from game state
+    // Remove the player from game state and clear any pending invite
     gameRoom.removePlayer(targetUserId);
-
-    // Clear any pending invite for that user
     pendingRejoinInvites.delete(targetUserId);
 
     const gs = gameRoom.gameState;
     if (!gs) return cb({ success: false, error: "No active game" });
 
-    // If fewer than 2 players remain, end the game
     if (gs.players.length < 2) {
       gs.status = "finished";
       io.to(roomId).emit("game:finished", gs);
       persistMatchResult(gs).catch((err) => console.error("[game:kick] persist failed:", err));
     } else {
-      // Advance turn if needed so the game doesn't get stuck on the kicked player
-      if (gs.currentPlayerIndex >= gs.players.length) {
-        gs.currentPlayerIndex = 0;
-      }
       io.to(roomId).emit("game:state", gs);
       io.to(roomId).emit("room:updated", gameRoom.room);
-      io.to(roomId).emit("system:notification", {
-        type: "info",
-        message: `${target.username} was removed from the game.`,
-        timestamp: Date.now(),
+      io.to(roomId).emit("game:player_left", {
+        userId: targetUserId,
+        username: target.username,
+        remainingCount: gs.players.length,
       });
     }
 
