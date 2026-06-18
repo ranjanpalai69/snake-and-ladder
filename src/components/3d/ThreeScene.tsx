@@ -515,7 +515,8 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
       raycaster.setFromCamera(mouse, camera);
       if (raycaster.intersectObjects(dg.children, true).length > 0) {
         onRollRef.current?.();
-        playDiceRoll();
+        // Only play sound here in multiplayer (single-player handleRoll plays it)
+        if (!singlePlayer) playDiceRoll();
       }
     };
     renderer.domElement.addEventListener("click", onClick);
@@ -583,8 +584,10 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
     };
     animate();
 
-    // OrbitControls (lazy)
+    // OrbitControls (lazy) — guard against unmount before import resolves
+    let disposed = false;
     import("three/examples/jsm/controls/OrbitControls.js").then(({ OrbitControls }) => {
+      if (disposed) return;
       const ctrl = new OrbitControls(camera, renderer.domElement);
       ctrl.target.set(0, 0, 0);
       ctrl.enablePan = false;
@@ -598,6 +601,7 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
     });
 
     return () => {
+      disposed = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", onResize);
       renderer.domElement.removeEventListener("click", onClick);

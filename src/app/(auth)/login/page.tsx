@@ -44,10 +44,11 @@ function LoginForm() {
   async function handleGoogleLogin() {
     setGoogleLoading(true);
     const supabase = getSupabaseBrowserClient();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+        redirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
       },
     });
     if (error) { toast.error(error.message); setGoogleLoading(false); }

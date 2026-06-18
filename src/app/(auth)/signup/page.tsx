@@ -32,10 +32,11 @@ export default function SignupPage() {
   async function handleGoogleSignup() {
     setGoogleLoading(true);
     const supabase = getSupabaseBrowserClient();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/lobby`,
+        redirectTo: `${appUrl}/auth/callback?next=/lobby`,
       },
     });
     if (error) { toast.error(error.message); setGoogleLoading(false); }
@@ -48,17 +49,29 @@ export default function SignupPage() {
 
     const supabase = getSupabaseBrowserClient();
     const avatarId = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
+    // Use NEXT_PUBLIC_APP_URL so confirmation emails link to production, not localhost
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { username: username.trim(), avatar_id: avatarId },
+        emailRedirectTo: `${appUrl}/auth/callback?next=/lobby`,
       },
     });
 
-    if (error) { toast.error(error.message); setLoading(false); }
-    else { toast.success("Account created! Welcome!"); router.push("/lobby"); }
+    if (error) { toast.error(error.message); setLoading(false); return; }
+
+    // If session exists immediately, email confirmation is off — go straight to lobby
+    if (data.session) {
+      toast.success("Account created! Welcome!");
+      router.push("/lobby");
+    } else {
+      // Email confirmation required
+      toast.success("Check your email to confirm your account!", { duration: 6000 });
+      setLoading(false);
+    }
   }
 
   return (

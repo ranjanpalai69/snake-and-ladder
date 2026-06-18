@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check, Copy, ArrowLeft, Loader2 } from "lucide-react";
@@ -11,6 +11,7 @@ import { GameControls } from "@/components/game/GameControls";
 import { ChatPanel } from "@/components/game/ChatPanel";
 import { WinModal } from "@/components/game/WinModal";
 import { Navbar } from "@/components/layout/Navbar";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSocket } from "@/hooks/useSocket";
 import { useRoomStore } from "@/stores/roomStore";
 import { useGameStore } from "@/stores/gameStore";
@@ -192,7 +193,7 @@ function WaitingRoom() {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-export default function GamePage() {
+function GamePageInner() {
   const params = useParams<{ roomId: string }>();
   const { gameState, isReconnecting } = useGameStore();
   const { currentRoom, persistedRoomId, isConnected } = useRoomStore();
@@ -200,6 +201,9 @@ export default function GamePage() {
   const { leaveRoom } = useSocket();
   const router = useRouter();
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     // Don't redirect immediately — give reconnect time to fire (3 seconds)
@@ -220,6 +224,14 @@ export default function GamePage() {
   }, [currentRoom, gameState, isReconnecting, persistedRoomId, params.roomId]);
 
   const isPlaying = gameState?.status === "playing" || gameState?.status === "finished";
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (!isPlaying) {
     return (
@@ -273,5 +285,13 @@ export default function GamePage() {
 
       <WinModal />
     </div>
+  );
+}
+
+export default function GamePage() {
+  return (
+    <ErrorBoundary>
+      <GamePageInner />
+    </ErrorBoundary>
   );
 }

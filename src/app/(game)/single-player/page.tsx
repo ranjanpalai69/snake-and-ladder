@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { DynamicGameScene } from "@/components/3d/DynamicScene";
 import { GameControls } from "@/components/game/GameControls";
 import { WinModal } from "@/components/game/WinModal";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useGameStore } from "@/stores/gameStore";
 import { useAuthStore } from "@/stores/authStore";
 import { createInitialGameState, applyMove, rollDice } from "@/lib/game/engine";
@@ -95,14 +96,17 @@ function ModePicker({ onSelect }: { onSelect: (withBot: boolean) => void }) {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-export default function SinglePlayerPage() {
+function SinglePlayerPageInner() {
   const { gameState, setGameState, setRolling, isRolling, reset, setShowWinModal, setLastMove } = useGameStore();
   const { user, profile } = useAuthStore();
 
+  const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<"pick" | "play">("pick");
   const [withBot, setWithBot] = useState(false);
   const animBusyRef = useRef(false);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Init game after mode selected
   const startGame = useCallback((bot: boolean) => {
@@ -116,26 +120,28 @@ export default function SinglePlayerPage() {
 
   // ── Human roll ────────────────────────────────────────────────────────────
   const handleRoll = useCallback(() => {
-    if (!gameState || isRolling || gameState.status === "finished") return;
+    const gs = useGameStore.getState().gameState;
+    if (!gs || isRolling || gs.status === "finished") return;
     if (animBusyRef.current) return;
 
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    // Don't let human roll when it's bot's turn
+    const currentPlayer = gs.players[gs.currentPlayerIndex];
     if (currentPlayer?.userId === BOT_ID) return;
 
     setRolling(true);
     playDiceRoll();
 
     setTimeout(() => {
-      const player = gameState.players[gameState.currentPlayerIndex];
+      const latest = useGameStore.getState().gameState;
+      if (!latest) { setRolling(false); return; }
+      const player = latest.players[latest.currentPlayerIndex];
+      if (!player || player.userId === BOT_ID) { setRolling(false); return; }
       const diceValue = rollDice();
-      const { newState, move } = applyMove(gameState, player.id, diceValue);
+      const { newState, move } = applyMove(latest, player.id, diceValue);
       setLastMove(move);
       setGameState(newState);
-      // Rolling stays true until animation finishes (onAnimDone)
       if (newState.winner) setShowWinModal(true);
     }, 700);
-  }, [gameState, isRolling, setGameState, setRolling, setShowWinModal, setLastMove]);
+  }, [isRolling, setGameState, setRolling, setShowWinModal, setLastMove]);
 
   // Called by ThreeScene when all animations complete
   const handleAnimDone = useCallback(() => {
@@ -189,6 +195,14 @@ export default function SinglePlayerPage() {
   // ── Turn label ────────────────────────────────────────────────────────────
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
   const isHumanTurn = currentPlayer?.userId !== BOT_ID;
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (mode === "pick") {
     return (
@@ -306,5 +320,13 @@ export default function SinglePlayerPage() {
 
       <WinModal />
     </div>
+  );
+}
+
+export default function SinglePlayerPage() {
+  return (
+    <ErrorBoundary>
+      <SinglePlayerPageInner />
+    </ErrorBoundary>
   );
 }
