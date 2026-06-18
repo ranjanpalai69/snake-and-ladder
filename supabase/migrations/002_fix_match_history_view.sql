@@ -8,9 +8,11 @@ alter table public.matches drop constraint if exists matches_status_check;
 alter table public.matches add constraint matches_status_check
   check (status in ('waiting', 'playing', 'finished', 'abandoned'));
 
--- Replace the limited view with a full-detail version.
+-- Drop and recreate — column names changed so CREATE OR REPLACE is rejected by Postgres.
+drop view if exists public.match_history_view;
+
 -- Returns one row per (match × user), with self stats + full opponent list as JSON.
-create or replace view public.match_history_view as
+create view public.match_history_view as
 select
   m.id                            as match_id,
   mp_me.user_id,
