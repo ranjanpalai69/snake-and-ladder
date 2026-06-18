@@ -180,22 +180,26 @@ function SinglePlayerPageInner() {
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (currentPlayer?.userId !== BOT_ID) return;
-    if (isRolling || animBusyRef.current) return;
+    if (isRolling) return;
 
-    // Bot waits 1.2s then rolls
-    botTimerRef.current = setTimeout(() => {
+    // Bot waits 1.2s then rolls — delay is sufficient buffer for any prior animation to complete
+    const doRoll = () => {
+      const gs = useGameStore.getState().gameState;
+      if (!gs || gs.status === "finished") return;
+      const player = gs.players[gs.currentPlayerIndex];
+      if (player?.userId !== BOT_ID) return;
+
       setRolling(true);
       playDiceRoll();
 
       setTimeout(() => {
-        // Re-read from store to get latest state
-        const gs = useGameStore.getState().gameState;
-        if (!gs) return;
-        const player = gs.players[gs.currentPlayerIndex];
-        if (player?.userId !== BOT_ID) { setRolling(false); return; }
+        const latest = useGameStore.getState().gameState;
+        if (!latest) { setRolling(false); return; }
+        const p = latest.players[latest.currentPlayerIndex];
+        if (p?.userId !== BOT_ID) { setRolling(false); return; }
 
         const diceValue = rollDice();
-        const { newState, move } = applyMove(gs, player.id, diceValue);
+        const { newState, move } = applyMove(latest, p.id, diceValue);
         setGameState(newState);
         setRolling(false);
         setDiceReveal(diceValue);
@@ -205,10 +209,10 @@ function SinglePlayerPageInner() {
           if (newState.winner) setShowWinModal(true);
         }, 1000);
       }, 700);
-    }, 1200);
+    };
 
+    botTimerRef.current = setTimeout(doRoll, 1200);
     return () => { if (botTimerRef.current) clearTimeout(botTimerRef.current); };
-  // Also re-trigger when moveHistory length changes so bot fires again on extra turn (rolled 6 / blocked)
   }, [gameState?.currentPlayerIndex, gameState?.moveHistory?.length, gameState?.status, withBot, isRolling]);
 
   function handleRestart() {
