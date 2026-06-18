@@ -698,9 +698,16 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
   // ── Build move animation when lastMove changes ─────────────────────────────
   useEffect(() => {
     if (!lastMove) return;
-    const { playerId, from, to, diceValue, hadSnake, hadLadder } = lastMove;
+    const { playerId, from, to, diceValue, hadSnake, hadLadder, wasBlocked } = lastMove;
     const scene = sceneRef.current;
     if (!scene) return;
+
+    // Blocked move — player stays in place, no piece animation needed.
+    // Still call onAnimDone so animBusyRef in parent resets and the next player can roll.
+    if (wasBlocked) {
+      setTimeout(() => onAnimDoneRef.current?.(), 80);
+      return;
+    }
 
     // Ensure piece exists
     const color = new THREE.Color(
