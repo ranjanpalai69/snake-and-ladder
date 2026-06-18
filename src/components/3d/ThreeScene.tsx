@@ -478,7 +478,9 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
     dir.shadow.mapSize.setScalar(2048); scene.add(dir);
     const pl1 = new THREE.PointLight(0x6366f1, 0.75); pl1.position.set(-5, 10, -5);
     scene.add(pl1); pl1Ref.current = pl1;
-    scene.add(Object.assign(new THREE.PointLight(0x8b5cf6, 0.35), { position: new THREE.Vector3(5, 7, 5) }));
+    const pl2 = new THREE.PointLight(0x8b5cf6, 0.35);
+    pl2.position.set(5, 7, 5);
+    scene.add(pl2);
 
     // Board
     scene.add(buildBoard());
