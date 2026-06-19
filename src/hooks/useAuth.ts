@@ -36,12 +36,14 @@ export function useAuth() {
         .select("*")
         .eq("id", userId)
         .single();
-      if (error) {
+      if (!error && data) {
+        setProfile(data);
+      } else if (error) {
         console.error("[auth] fetchProfile error:", error.message);
+        // Keep the Zustand-persisted profile from localStorage rather than wiping it
       }
-      setProfile(data ?? null);
-    } catch (err) {
-      console.error("[auth] fetchProfile unexpected:", err);
+    } catch {
+      // Network unavailable offline — persisted profile from localStorage remains intact
     } finally {
       setLoading(false);
     }

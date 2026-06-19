@@ -30,6 +30,18 @@ function AudioUnlocker() {
   return null;
 }
 
+// Warms the service worker cache for offline-capable game modes.
+// Fetching these pages while online causes the SW's StaleWhileRevalidate
+// strategy to cache their HTML so they're available when the device goes offline.
+function OfflineCacheWarmer() {
+  useEffect(() => {
+    if (!navigator.onLine) return;
+    fetch("/single-player", { credentials: "same-origin" }).catch(() => {});
+    fetch("/local", { credentials: "same-origin" }).catch(() => {});
+  }, []);
+  return null;
+}
+
 /**
  * Binds ALL socket event listeners exactly once for the entire app lifetime.
  * No other component should call connectSocket or socket.on — they use
@@ -377,6 +389,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <>
       <AuthInitializer />
       <AudioUnlocker />
+      <OfflineCacheWarmer />
       <SocketInitializer />
       {children}
       <Toaster

@@ -24,9 +24,15 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Network unavailable (offline) — treat as unauthenticated
+  }
 
-  const protectedRoutes = ["/lobby", "/game", "/single-player", "/profile", "/leaderboard"];
+  const protectedRoutes = ["/lobby", "/game", "/profile", "/leaderboard"];
   const isProtected = protectedRoutes.some((r) => request.nextUrl.pathname.startsWith(r));
   const isAuth = request.nextUrl.pathname.startsWith("/login") ||
                  request.nextUrl.pathname.startsWith("/signup");

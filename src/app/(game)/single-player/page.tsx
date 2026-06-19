@@ -121,11 +121,15 @@ function SinglePlayerPageInner() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [mode, gameState?.status]);
 
-  // Init game after mode selected
+  // Init game after mode selected — falls back to guest when offline / not logged in
   const startGame = useCallback((bot: boolean) => {
-    if (!user || !profile) return;
     reset();
-    const gs = buildSoloState(user.id, profile.username, profile.avatar_id as AvatarId, bot);
+    const gs = buildSoloState(
+      user?.id ?? generateId(),
+      profile?.username ?? "Guest",
+      (profile?.avatar_id as AvatarId) ?? "avatar_01",
+      bot,
+    );
     setGameState(gs);
     setWithBot(bot);
     setMode("play");

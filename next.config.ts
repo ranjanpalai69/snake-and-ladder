@@ -8,6 +8,12 @@ const withPWA = require("next-pwa")({
   fallbacks: {
     document: "/offline",
   },
+  // Precache the two offline-capable game pages so they're available
+  // immediately after SW installation, even before the user has visited them.
+  additionalManifestEntries: [
+    { url: "/single-player", revision: `build-${Date.now()}` },
+    { url: "/local", revision: `build-${Date.now()}` },
+  ],
   runtimeCaching: [
     {
       urlPattern: /^\/(?:login|signup|lobby|profile|leaderboard|single-player|local)?$/,
