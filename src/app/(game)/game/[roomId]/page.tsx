@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Copy, ArrowLeft, Loader2, Bell, Dices, Users, MessageSquare, UserMinus, Send, LogOut, AlertTriangle, SkipForward } from "lucide-react";
+import { Check, Copy, ArrowLeft, Loader2, Bell, Dices, Users, MessageSquare, LogOut, AlertTriangle } from "lucide-react";
 import { PLAYER_COLORS, type PlayerColor, type GamePlayer } from "@/types/game";
 import { DynamicGameScene } from "@/components/3d/DynamicScene";
 import { PlayerPanel } from "@/components/game/PlayerPanel";
@@ -103,91 +103,6 @@ function LeaveWarningModal({
 }
 
 // ── Disconnected player management ────────────────────────────────────────────
-function DisconnectedPlayerActions({
-  players,
-  myUserId,
-  currentPlayerUserId,
-}: {
-  players: GamePlayer[];
-  myUserId: string | undefined;
-  currentPlayerUserId: string | undefined;
-}) {
-  const disconnected = players.filter((p) => !p.isConnected);
-  if (disconnected.length === 0) return null;
-
-  function kickPlayer(targetUserId: string) {
-    getSocket().emit("game:kick_player", { targetUserId }, (res) => {
-      if (!res.success) toast.error(res.error ?? "Cannot remove player");
-    });
-  }
-
-  function inviteRejoin(targetUserId: string) {
-    getSocket().emit("game:invite_rejoin", { targetUserId });
-    toast("Rejoin invite sent!", { icon: "📨", duration: 2000 });
-  }
-
-  function skipTurn(targetUserId: string) {
-    getSocket().emit("game:skip_turn", { targetUserId }, (res) => {
-      if (!res.success) toast.error(res.error ?? "Cannot skip turn");
-    });
-  }
-
-  return (
-    <div className="rounded-xl bg-amber-950/30 border border-amber-500/30 p-3 space-y-2">
-      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Disconnected</p>
-      {disconnected.map((p) => {
-        const hex = PLAYER_COLORS[p.color] ?? "#6366f1";
-        const isTheirTurn = currentPlayerUserId === p.userId;
-        return (
-          <div key={p.userId} className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 opacity-60"
-                style={{ background: hex }}
-              >
-                {p.username.slice(0, 2).toUpperCase()}
-              </div>
-              <span className="flex-1 text-xs text-slate-400 truncate">
-                {p.username}
-                {isTheirTurn && (
-                  <span className="ml-1 text-amber-400 font-semibold">(their turn)</span>
-                )}
-              </span>
-              {/* Invite button — any player */}
-              <button
-                onClick={() => inviteRejoin(p.userId)}
-                title="Send rejoin invite"
-                className="p-1.5 rounded-lg text-violet-400 hover:bg-violet-500/20 transition-colors"
-              >
-                <Send className="w-3 h-3" />
-              </button>
-              {/* Remove button — any connected player */}
-              {p.userId !== myUserId && (
-                <button
-                  onClick={() => kickPlayer(p.userId)}
-                  title="Remove player from match"
-                  className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors"
-                >
-                  <UserMinus className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-            {/* Skip turn button — shown when it's the disconnected player's turn */}
-            {isTheirTurn && (
-              <button
-                onClick={() => skipTurn(p.userId)}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold text-amber-300 border border-amber-500/30 hover:bg-amber-500/10 transition-colors"
-              >
-                <SkipForward className="w-3 h-3" />
-                Skip {p.username}&apos;s turn
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Last-player quit banner ───────────────────────────────────────────────────
 function LastPlayerBanner({ onQuit }: { onQuit: () => void }) {
@@ -512,12 +427,18 @@ function MobileGamePanel({
   myUserId,
   isLastPlayer,
   onQuit,
+  onSkipTurn,
+  onKickPlayer,
+  onInviteRejoin,
 }: {
   players: GamePlayer[];
   currentPlayerUserId: string | undefined;
   myUserId: string | undefined;
   isLastPlayer: boolean;
   onQuit: () => void;
+  onSkipTurn: (targetUserId: string) => void;
+  onKickPlayer: (targetUserId: string) => void;
+  onInviteRejoin: (targetUserId: string) => void;
 }) {
   const [tab, setTab] = useState<"controls" | "players" | "chat">("controls");
   const { unreadChatCount, clearUnread } = useGameStore();
@@ -565,14 +486,14 @@ function MobileGamePanel({
           </>
         )}
         {tab === "players" && (
-          <>
-            <DisconnectedPlayerActions players={players} myUserId={myUserId} currentPlayerUserId={currentPlayerUserId} />
-            <PlayerPanel
-              players={players}
-              currentPlayerUserId={currentPlayerUserId}
-              myUserId={myUserId}
-            />
-          </>
+          <PlayerPanel
+            players={players}
+            currentPlayerUserId={currentPlayerUserId}
+            myUserId={myUserId}
+            onSkipTurn={onSkipTurn}
+            onKickPlayer={onKickPlayer}
+            onInviteRejoin={onInviteRejoin}
+          />
         )}
         {tab === "chat" && <ChatPanel onActive={clearUnread} />}
       </div>
@@ -696,6 +617,38 @@ function GamePageInner() {
     router.push("/lobby");
   }, [leaveRoom, router]);
 
+  // ── Game action callbacks ────────────────────────────────────────────────
+  const handleSkipTurn = useCallback((targetUserId: string) => {
+    getSocket().emit("game:skip_turn", { targetUserId }, (res) => {
+      if (!res.success && res.error !== "Not that player's turn") {
+        toast.error(res.error ?? "Cannot skip turn");
+      }
+    });
+  }, []);
+
+  const handleKickPlayer = useCallback((targetUserId: string) => {
+    getSocket().emit("game:kick_player", { targetUserId }, (res) => {
+      if (!res.success) toast.error(res.error ?? "Cannot remove player");
+    });
+  }, []);
+
+  const handleInviteRejoin = useCallback((targetUserId: string) => {
+    getSocket().emit("game:invite_rejoin", { targetUserId });
+    toast("Rejoin invite sent!", { icon: "📨", duration: 2000 });
+  }, []);
+
+  // Auto-skip disconnected player's turn after 3 seconds so the game never gets stuck
+  const currentTurnPlayer = gameState?.players[gameState?.currentPlayerIndex ?? -1];
+  useEffect(() => {
+    if (!isActive || !currentTurnPlayer || currentTurnPlayer.isConnected) return;
+    const targetId = currentTurnPlayer.userId;
+    const timer = setTimeout(() => {
+      getSocket().emit("game:skip_turn", { targetUserId: targetId }, () => {});
+    }, 3000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, currentTurnPlayer?.userId, currentTurnPlayer?.isConnected]);
+
   if (!mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -766,15 +719,13 @@ function GamePageInner() {
           className="hidden lg:flex w-80 flex-col gap-3 p-4 bg-black/40 border-l border-white/8 overflow-y-auto"
         >
           {isLastPlayer && <LastPlayerBanner onQuit={handleQuitMatch} />}
-          <DisconnectedPlayerActions
-            players={gameState.players}
-            myUserId={user?.id}
-            currentPlayerUserId={currentPlayerUserId}
-          />
           <PlayerPanel
             players={gameState.players}
             currentPlayerUserId={currentPlayerUserId}
             myUserId={user?.id}
+            onSkipTurn={handleSkipTurn}
+            onKickPlayer={handleKickPlayer}
+            onInviteRejoin={handleInviteRejoin}
           />
           <GameControls />
           {/* Leave match button */}
@@ -800,6 +751,9 @@ function GamePageInner() {
           myUserId={user?.id}
           isLastPlayer={isLastPlayer}
           onQuit={handleQuitMatch}
+          onSkipTurn={handleSkipTurn}
+          onKickPlayer={handleKickPlayer}
+          onInviteRejoin={handleInviteRejoin}
         />
       </div>
 
