@@ -2,7 +2,7 @@
   "name": "Snake & Ladder",
   "short_name": "Snake & Ladder",
   "description": "Real-time multiplayer Snake & Ladder with a 3D board, live rooms, in-game chat, ranks, and offline play. Install and play anywhere.",
-  "start_url": "/",
+  "start_url": "/single-player",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

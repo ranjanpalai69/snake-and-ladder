@@ -5,12 +5,18 @@ const withPWA = require("next-pwa")({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
+  // Prevent next-pwa from registering a NetworkFirst route for "/".
+  // Without this, "/" always tries the network first and falls back to the
+  // offline page when there's no internet — even if the page is cached.
+  // Disabling lets our StaleWhileRevalidate runtimeCaching handle "/" instead.
+  cacheStartUrl: false,
   fallbacks: {
     document: "/offline",
   },
   // Precache the two offline-capable game pages so they're available
   // immediately after SW installation, even before the user has visited them.
   additionalManifestEntries: [
+    { url: "/", revision: `build-${Date.now()}` },
     { url: "/single-player", revision: `build-${Date.now()}` },
     { url: "/local", revision: `build-${Date.now()}` },
   ],
