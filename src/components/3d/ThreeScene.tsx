@@ -821,13 +821,14 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
     if (gameState?.status === "playing") winPlayedRef.current = false;
   }, [gameState?.status]);
 
-  // ── Sync pieces (initial placement & new players) ─────────────────────────
+  // ── Sync pieces (add for new players, remove for players who left) ──────────
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene || !gameState) return;
 
+    // Add pieces for players not yet in the scene
     for (const player of gameState.players) {
-      if (piecesRef.current.has(player.id)) continue; // already exists, animation handles position
+      if (piecesRef.current.has(player.id)) continue;
       const color = new THREE.Color(PLAYER_COLOR_HEX[player.color] ?? "#ffffff");
       const mesh = new THREE.Mesh(
         new THREE.CylinderGeometry(0.19, 0.23, 0.44, 12),
@@ -839,7 +840,21 @@ export function GameScene({ singlePlayer = false, onRollOverride, onAnimDone }: 
       piecesRef.current.set(player.id, mesh);
     }
 
-    // Highlight active player
+    // Remove pieces for players who left or were kicked
+    const activePieceIds = new Set(gameState.players.map((p) => p.id));
+    const toRemove: string[] = [];
+    piecesRef.current.forEach((_, id) => {
+      if (!activePieceIds.has(id)) toRemove.push(id);
+    });
+    for (const id of toRemove) {
+      const mesh = piecesRef.current.get(id)!;
+      scene.remove(mesh);
+      (mesh.material as THREE.MeshStandardMaterial).dispose();
+      mesh.geometry.dispose();
+      piecesRef.current.delete(id);
+    }
+
+    // Highlight active player's piece
     const current = gameState.players[gameState.currentPlayerIndex];
     piecesRef.current.forEach((mesh, id) => {
       (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = id === current?.id ? 0.85 : 0.2;
