@@ -451,8 +451,8 @@ function MobileGamePanel({
 
   return (
     <div
-      className="lg:hidden flex flex-col shrink-0 bg-black/60 backdrop-blur-md border-t border-white/8"
-      style={{ maxHeight: "260px" }}
+      className="lg:hidden landscape:hidden flex flex-col shrink-0 bg-black/60 backdrop-blur-md border-t border-white/8"
+      style={{ maxHeight: "min(260px, 42vh)" }}
     >
       {/* Tab bar */}
       <div className="flex shrink-0 border-b border-white/8">
@@ -701,22 +701,22 @@ function GamePageInner() {
         )}
       </AnimatePresence>
 
-      {/* Game area — stacks vertically on mobile, side-by-side on desktop */}
-      <div className="flex flex-1 overflow-hidden pt-16 flex-col lg:flex-row">
+      {/* Game area — portrait: board top + panel bottom; landscape/desktop: board left + sidebar right */}
+      <div className="flex flex-1 overflow-hidden pt-16 flex-col landscape:flex-row lg:flex-row">
 
-        {/* 3D board — full-width on mobile, flex-1 on desktop */}
+        {/* 3D board */}
         <div className="flex-1 relative min-h-0">
           <DynamicGameScene />
           {isReconnecting && <ReconnectingOverlay />}
           {diceReveal !== null && <DiceRevealOverlay value={diceReveal} />}
         </div>
 
-        {/* Desktop sidebar — hidden on mobile */}
+        {/* Sidebar — desktop always, mobile landscape always (replaces bottom panel) */}
         <motion.div
           initial={{ x: 320 }}
           animate={{ x: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
-          className="hidden lg:flex w-80 flex-col gap-3 p-4 bg-black/40 border-l border-white/8 overflow-y-auto"
+          className="hidden landscape:flex lg:flex w-52 lg:w-80 flex-col gap-2 lg:gap-3 p-2 lg:p-4 bg-black/40 border-l border-white/8 overflow-y-auto shrink-0"
         >
           {isLastPlayer && <LastPlayerBanner onQuit={handleQuitMatch} />}
           <PlayerPanel
@@ -728,7 +728,6 @@ function GamePageInner() {
             onInviteRejoin={handleInviteRejoin}
           />
           <GameControls />
-          {/* Leave match button */}
           <button
             onClick={() => {
               leaveTargetRef.current = "/lobby";
@@ -744,7 +743,7 @@ function GamePageInner() {
           </div>
         </motion.div>
 
-        {/* Mobile bottom panel — hidden on desktop */}
+        {/* Mobile bottom panel — portrait only (landscape uses sidebar above) */}
         <MobileGamePanel
           players={gameState.players}
           currentPlayerUserId={currentPlayerUserId}

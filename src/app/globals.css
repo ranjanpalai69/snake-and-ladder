@@ -81,6 +81,18 @@ body {
 /* Three.js canvas */
 canvas { display: block; }
 
+/* Safe-area insets for notched / home-bar devices (iPhone X+) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-left   { padding-left:  env(safe-area-inset-left);   }
+  .safe-right  { padding-right: env(safe-area-inset-right);  }
+}
+
+/* Mobile landscape — compact scrollbar so sidebar stays usable */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  ::-webkit-scrollbar { width: 3px; }
+}
+
 /* Disable default focus outline, use custom */
 :focus-visible { outline: 2px solid rgba(99, 102, 241, 0.6); outline-offset: 2px; border-radius: 6px; }
 

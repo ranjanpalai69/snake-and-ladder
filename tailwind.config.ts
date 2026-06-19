@@ -109,6 +109,10 @@ const config: Config = {
         "card-glass": "linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
         "shimmer-gradient": "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)",
       },
+      screens: {
+        // Targets mobile phones in landscape (height < 500px)
+        landscape: { raw: "(orientation: landscape) and (max-height: 500px)" },
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
