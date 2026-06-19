@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Hash, Gamepad2, Users, Trophy, Globe, Swords, ArrowRight, MonitorSmartphone } from "lucide-react";
+import Image from "next/image";
+import { Plus, Hash, Gamepad2, Users, Trophy, Globe, ArrowRight, MonitorSmartphone } from "lucide-react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { RoomCard } from "@/components/lobby/RoomCard";
@@ -21,7 +22,7 @@ function ModeSelection({ onSelect }: { onSelect: (mode: LobbyView) => void }) {
         className="text-center mb-12"
       >
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-violet-900/30 border border-violet-500/20 text-sm text-violet-300 mb-4">
-          <Swords className="w-3.5 h-3.5" /> Choose your mode
+          <Image src="/assets/icons/snake-ladder-favicon.png" alt="" width={14} height={14} className="rounded-sm" /> Choose your mode
         </div>
         <h1 className="font-display text-4xl font-black text-white">How do you want to play?</h1>
       </motion.div>

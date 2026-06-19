@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Skull, Users, Clock, ChevronDown, ChevronUp, Swords, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Trophy, Skull, Users, Clock, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useProfile, type MatchHistoryEntry, type MatchOpponent } from "@/hooks/useProfile";
 import { useAuthStore } from "@/stores/authStore";
 import { formatTimeAgo } from "@/lib/utils";
@@ -137,7 +137,7 @@ function MatchCard({ match, myUserId, myUsername, index }: {
           {won && !abandoned
             ? <Trophy className="w-4 h-4 text-yellow-400" />
             : abandoned
-            ? <Swords className="w-4 h-4 text-slate-500" />
+            ? <Minus className="w-4 h-4 text-slate-500" />
             : <Skull className="w-4 h-4 text-red-400" />
           }
         </div>

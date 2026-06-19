@@ -2,9 +2,9 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import {
-  Swords,
   Users,
   Trophy,
   Zap,
@@ -134,7 +134,7 @@ export default function HomePage() {
             transition={{ delay: 0.2 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-violet-900/40 border border-violet-500/30 text-sm text-violet-300 mb-6"
           >
-            <Swords className="w-3.5 h-3.5" />
+            <Image src="/assets/icons/snake-ladder-favicon.png" alt="" width={14} height={14} className="rounded-sm" />
             Free 3D Multiplayer Board Game
           </motion.div>
 

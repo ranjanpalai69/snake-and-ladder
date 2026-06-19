@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Trophy, Target, Swords, TrendingUp, Star, Zap } from "lucide-react";
+import { Trophy, Target, Gamepad2, TrendingUp, Star, Zap } from "lucide-react";
 import type { Database } from "@/types/supabase";
 import { RANK_COLORS } from "@/types/game";
 
@@ -19,7 +19,7 @@ export function StatsCard({ profile }: StatsCardProps) {
   const xpPercent = (profile.xp % 200) / 200 * 100;
 
   const stats = [
-    { label: "Total Matches", value: profile.total_matches, icon: Swords, color: "#6366f1" },
+    { label: "Total Matches", value: profile.total_matches, icon: Gamepad2, color: "#6366f1" },
     { label: "Wins", value: profile.wins, icon: Trophy, color: "#22c55e" },
     { label: "Win Rate", value: `${winRate}%`, icon: Target, color: "#f59e0b" },
     { label: "Rank Points", value: profile.rank_points, icon: TrendingUp, color: rankColor },

@@ -3,7 +3,8 @@
 import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Loader2, Swords, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react";
+import Image from "next/image";
+import { Lock, Loader2, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import toast from "react-hot-toast";
 
@@ -102,7 +103,7 @@ export default function ResetPasswordPage() {
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center mb-3 shadow-xl shadow-violet-900/50">
-            <Swords className="w-6 h-6 text-white" />
+            <Image src="/assets/icons/snake-ladder-favicon.png" alt="Snake & Ladder" width={30} height={30} className="rounded-sm" />
           </div>
           <h1 className="font-display text-2xl font-bold text-white">Set new password</h1>
           <p className="text-sm text-slate-400 mt-1">Choose a strong password for your account.</p>

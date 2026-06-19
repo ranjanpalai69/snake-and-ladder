@@ -3,7 +3,8 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Loader2, Swords, AlertCircle, MailCheck, ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import { Mail, Loader2, AlertCircle, MailCheck, ArrowLeft } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
@@ -108,7 +109,7 @@ export default function ForgotPasswordPage() {
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center mb-3 shadow-xl shadow-violet-900/50">
-            <Swords className="w-6 h-6 text-white" />
+            <Image src="/assets/icons/snake-ladder-favicon.png" alt="Snake & Ladder" width={30} height={30} className="rounded-sm" />
           </div>
           <h1 className="font-display text-2xl font-bold text-white">Forgot password?</h1>
           <p className="text-sm text-slate-400 mt-1 text-center">

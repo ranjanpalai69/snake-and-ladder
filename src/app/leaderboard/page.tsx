@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Trophy, Star, Target, Swords, Crown } from "lucide-react";
+import { Trophy, Star, Target, Crown } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { RANK_COLORS } from "@/types/game";
